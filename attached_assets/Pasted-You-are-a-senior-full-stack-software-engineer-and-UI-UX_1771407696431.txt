@@ -1,0 +1,105 @@
+You are a senior full-stack software engineer and UI/UX designer.
+
+Build a complete, production-ready "Smart Healthcare Appointment System" web application with the following requirements:
+
+TECH STACK:
+- Frontend: React.js (with modern hooks, Context API)
+- Backend: Node.js with Express.js
+- Database: MySQL
+- Authentication: JWT-based authentication
+- Deployment: Frontend + Backend deployment with environment configs
+
+AUTHENTICATION & AUTHORIZATION:
+1. Implement JWT authentication.
+2. Email-based login and registration.
+3. Secure password hashing using bcrypt.
+4. Role-based authentication:
+   - Patient
+   - Doctor
+   - Admin
+5. On login, users must select or be identified as Doctor or Patient.
+6. Protect routes based on roles.
+
+USER ROLES & FEATURES:
+
+PATIENT FEATURES:
+- Patient registration & login
+- Patient dashboard with:
+  - Full personal details (name, age, gender, contact, medical history)
+  - Appointment history
+  - Upcoming appointments
+- Search hospitals by name, location, specialization
+- Search doctors by specialization, hospital, availability
+- Book appointments with date & time slot selection
+- View prescribed medicines
+- Cancel or reschedule appointments
+- Contact Us page
+- Profile update functionality
+
+DOCTOR FEATURES:
+- Doctor login & dashboard
+- View upcoming appointments
+- View patient details
+- Approve / reject appointment requests
+- Add prescriptions & medicines
+- Update availability schedule
+- Profile management
+
+ADMIN DASHBOARD:
+- Secure admin panel
+- Manage doctors, patients, hospitals
+- View analytics (appointments count, active users)
+- CRUD operations for all entities
+- Role management
+
+DATABASE DESIGN:
+- Proper relational schema with tables:
+  - users
+  - patients
+  - doctors
+  - hospitals
+  - appointments
+  - prescriptions
+- Use foreign keys and indexing
+- Follow normalization rules
+
+FRONTEND REQUIREMENTS:
+- Fully responsive UI
+- Modern animated design
+- Use animations (Framer Motion / CSS animations)
+- Clean healthcare-themed UI
+- Sidebar dashboard layout
+- Loading states, error handling
+- Form validation
+- Toast notifications
+
+BACKEND REQUIREMENTS:
+- RESTful APIs
+- JWT middleware
+- Error handling middleware
+- Input validation
+- Secure environment variables
+- MVC architecture
+
+DEPLOYMENT:
+- Provide deployment steps
+- Deploy backend on Render / Railway
+- Deploy frontend on Vercel / Netlify
+- Use environment variables for production
+- Provide MySQL connection setup for cloud database
+
+EXTRA:
+- Clean folder structure
+- README.md with setup instructions
+- Sample .env file
+- API documentation
+
+Generate:
+1. Complete frontend React code
+2. Complete backend Node.js code
+3. MySQL schema
+4. Deployment steps
+5. Screenshots description of UI
+6. Admin credentials (demo)
+
+Make the project scalable, secure, and suitable for a final-year or resume-level full-stack project.
