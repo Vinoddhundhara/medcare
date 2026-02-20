@@ -126,19 +126,28 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertPatientSchema = createInsertSchema(patients).omit({ id: true });
 export const insertDoctorSchema = createInsertSchema(doctors).omit({ id: true });
 export const insertHospitalSchema = createInsertSchema(hospitals).omit({ id: true });
-export const insertAppointmentSchema = createInsertSchema(appointments).omit({ id: true, createdAt: true, status: true }); // Status defaults to pending
+export const insertAppointmentSchema = createInsertSchema(appointments)
+  .omit({ id: true, createdAt: true, status: true })
+  .extend({
+    date: z.coerce.date(),
+  }); // Status defaults to pending
 export const insertPrescriptionSchema = createInsertSchema(prescriptions).omit({ id: true, date: true });
 
 // === EXPLICIT API TYPES ===
 
 export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertUser = typeof users.$inferInsert;
 
 export type Patient = typeof patients.$inferSelect;
+export type InsertPatient = typeof patients.$inferInsert;
 export type Doctor = typeof doctors.$inferSelect;
+export type InsertDoctor = typeof doctors.$inferInsert;
 export type Hospital = typeof hospitals.$inferSelect;
+export type InsertHospital = typeof hospitals.$inferInsert;
 export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = typeof appointments.$inferInsert;
 export type Prescription = typeof prescriptions.$inferSelect;
+export type InsertPrescription = typeof prescriptions.$inferInsert;
 
 // Registration Request (Complex)
 export const registerUserSchema = insertUserSchema.extend({

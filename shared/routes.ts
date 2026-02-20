@@ -8,6 +8,9 @@ import {
   registerUserSchema,
   users, patients, doctors, hospitals, appointments, prescriptions 
 } from './schema';
+import type { RegisterUserRequest, User } from "./schema";
+
+export type { RegisterUserRequest, User };
 
 export const errorSchemas = {
   validation: z.object({
@@ -106,7 +109,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/appointments' as const,
-      input: insertAppointmentSchema,
+      input: insertAppointmentSchema.omit({ patientId: true }),
       responses: {
         201: z.custom<typeof appointments.$inferSelect>(),
         400: errorSchemas.validation,

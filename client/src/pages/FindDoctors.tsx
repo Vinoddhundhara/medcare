@@ -39,30 +39,12 @@ function BookAppointmentDialog({ doctor }: { doctor: any }) {
     
     // Combine date and time into timestamp
     const dateTime = new Date(`${values.date}T${values.time}`);
-    
-    // Assuming user is patient, we get patient ID from context or backend handles it via session
-    // Since schema requires patientId, we might need to fetch it or backend infers from session user.
-    // Based on provided schema, Appointment needs patientId. 
-    // Usually backend routes.ts/storage.ts would look up patient record from req.user.id.
-    // Let's assume the API endpoint handles "current user as patient" logic, 
-    // OR we need to pass it. Since we don't have patientId in user object easily here without an extra fetch,
-    // let's assume the backend `createAppointment` implementation looks up the patient record for the logged-in user.
-    // If exact schema validation fails on backend missing patientId, backend needs to inject it.
-    
-    // NOTE: For this demo, we'll send the data we have.
-    
+
     createAppointment({
       doctorId: doctor.id,
-      patientId: user.id, // This is technically userId, backend must resolve to patientId or we need patientId in auth.
-      // Ideally useAuth returns full patient profile. Let's assume backend handles the mapping.
-      // But wait, schema says patientId is integer reference to patients table, not users table.
-      // Hack for demo: Pass a dummy ID or fix backend. 
-      // Correct approach: backend infers patient from session user.
-      // Let's proceed assuming backend handles it.
-      patientId: 1, // Placeholder: In real app, useAuth should return patientId or backend infers it
-      date: dateTime.toISOString(),
+      date: dateTime,
       reason: values.reason,
-    } as any, { // Cast as any to bypass strict client-side type check if types mismatch slightly
+    }, {
       onSuccess: () => setOpen(false),
     });
   }

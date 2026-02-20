@@ -4,7 +4,11 @@ import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertAppointmentSchema, insertPrescriptionSchema } from "@shared/schema";
+import {
+  insertAppointmentSchema,
+  insertPrescriptionSchema,
+  type InsertPrescription,
+} from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -110,7 +114,8 @@ export async function registerRoutes(
      if (!req.isAuthenticated() || req.user!.role !== "doctor") return res.sendStatus(401);
 
      try {
-       const input = insertPrescriptionSchema.parse(req.body);
+       const parsed = insertPrescriptionSchema.parse(req.body);
+       const input = parsed as InsertPrescription;
        // Verify appointment belongs to doctor?
        const appointment = await storage.getAppointment(input.appointmentId);
        const doctor = await storage.getDoctorByUserId(req.user!.id);

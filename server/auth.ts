@@ -5,7 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User, registerUserSchema } from "@shared/schema";
+import { User, registerUserSchema, type InsertDoctor } from "@shared/schema";
 import { z } from "zod";
 
 const scryptAsync = promisify(scrypt);
@@ -79,8 +79,9 @@ export function setupAuth(app: Express) {
           userId: user.id
         });
       } else if (input.role === "doctor" && input.doctorDetails) {
+        const doctorDetails = input.doctorDetails as Omit<InsertDoctor, "userId">;
         await storage.createDoctor({
-          ...input.doctorDetails,
+          ...doctorDetails,
           userId: user.id
         });
       }
