@@ -9,7 +9,7 @@ services:
     name: asset-manager-web
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run db:push && npm start
     healthCheckPath: /api/hospitals
     envVars:
