@@ -1,4 +1,4 @@
-# Asset Manager Deployment Guide
+# MedCare Deployment Guide
 
 ## 1) Local full stack (frontend + backend + Postgres) with Docker
 
@@ -13,9 +13,7 @@ This starts:
 - `app` (Express API + Vite-built frontend)
 - `db` (PostgreSQL 16)
 
-The app container runs:
-`npm run db:push && npm start`
-so schema is applied automatically at startup.
+The app container runs `npm run db:push && npm start` automatically so the schema is applied at startup.
 
 ## 2) Local run without Docker
 
@@ -42,16 +40,31 @@ npm run dev
 This repo includes `render.yaml` for Blueprint deploy.
 
 1. Push this repo to GitHub.
-2. In Render, choose `New +` -> `Blueprint`.
+2. In Render, choose `New +` → `Blueprint`.
 3. Select your repo.
 4. Render provisions:
-- `asset-manager-db` (Postgres)
-- `asset-manager-web` (Node web service)
+   - `medcare-db` (Postgres free tier)
+   - `medcare-web` (Node web service)
 5. App startup command runs migrations automatically:
-`npm run db:push && npm start`
+   `npm run db:push && npm start`
+6. *(Optional)* Add email env vars in Render dashboard:
+   - `EMAIL_USER` — your Gmail address
+   - `EMAIL_PASS` — Gmail App Password (16 chars, no spaces)
+   - `EMAIL_FROM` — e.g. `MedCare <you@gmail.com>`
+
+## Default seeded accounts
+
+Once the app starts, the database is seeded automatically. Use these to log in:
+
+| Role    | Username  | Password    |
+|---------|-----------|-------------|
+| Admin   | admin     | password123 |
+| Doctor  | doctor1   | password123 |
+| Doctor  | doctor2   | password123 |
+| Patient | patient1  | password123 |
 
 ## Notes
 
-- Default seeded users are created at app startup (see `server/routes.ts`).
-- For production, keep `SESSION_SECRET` strong and private.
+- For production, keep `SESSION_SECRET` strong and private (Render auto-generates one).
 - If your DB password includes special characters (like `@`), URL-encode it in `DATABASE_URL`.
+- Email is optional — the app works fully without it; email sends are silently skipped.

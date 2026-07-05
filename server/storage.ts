@@ -137,7 +137,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDoctors(filters?: { specialization?: string; hospitalId?: number; search?: string }): Promise<DoctorWithUser[]> {
-    let query = db
+    const conditions = [];
+
+    if (filters?.specialization) {
+      conditions.push(eq(doctors.specialization, filters.specialization));
+    }
+    if (filters?.hospitalId) {
+      conditions.push(eq(doctors.hospitalId, filters.hospitalId));
+    }
+    if (filters?.search) {
+      conditions.push(like(users.name, `%${filters.search}%`));
+    }
+
+    const whereClause = conditions.length === 0
+      ? undefined
+      : conditions.length === 1
+        ? conditions[0]
+        : and(...conditions);
+
+    const results = await db
       .select({
         doctor: doctors,
         user: users,
@@ -145,23 +163,9 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doctors)
       .innerJoin(users, eq(doctors.userId, users.id))
-      .leftJoin(hospitals, eq(doctors.hospitalId, hospitals.id));
+      .leftJoin(hospitals, eq(doctors.hospitalId, hospitals.id))
+      .where(whereClause);
 
-    if (filters) {
-      if (filters.specialization) {
-        query.where(eq(doctors.specialization, filters.specialization));
-      }
-      if (filters.hospitalId) {
-        query.where(eq(doctors.hospitalId, filters.hospitalId));
-      }
-      if (filters.search) {
-        query.where(
-          like(users.name, `%${filters.search}%`)
-        );
-      }
-    }
-
-    const results = await query;
     return results.map(r => ({ ...r.doctor, user: r.user, hospital: r.hospital }));
   }
 

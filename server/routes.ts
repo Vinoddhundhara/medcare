@@ -222,52 +222,6 @@ export async function registerRoutes(
     });
   });
 
-  // === Video Call Link ===
-  app.patch("/api/appointments/:id/video-link", async (req, res) => {
-    if (!req.isAuthenticated() || req.user!.role !== "doctor") return res.sendStatus(401);
-
-    const appointmentId = parseInt(req.params.id);
-    const { link } = req.body;
-
-    if (!link || typeof link !== "string") {
-      return res.status(400).json({ message: "Valid link is required" });
-    }
-
-    // Verify doctor owns this appointment
-    const doctor = await storage.getDoctorByUserId(req.user!.id);
-    if (!doctor) return res.sendStatus(403);
-
-    const appointment = await storage.getAppointment(appointmentId);
-    if (!appointment) return res.sendStatus(404);
-    if (appointment.doctorId !== doctor.id) return res.sendStatus(403);
-    if (appointment.status !== "confirmed") {
-      return res.status(400).json({ message: "Can only add video link to confirmed appointments" });
-    }
-
-    const updated = await storage.updateVideoCallLink(appointmentId, link);
-    res.json(updated);
-
-    // Email patient with the video link
-    setImmediate(async () => {
-      try {
-        const patientWithUser = await storage.getPatientWithUser(appointment.patientId);
-        const doctorWithUser = await storage.getDoctorWithUser(appointment.doctorId);
-        if (patientWithUser && doctorWithUser) {
-          await sendVideoCallLinkEmail({
-            patientName: patientWithUser.user.name,
-            patientEmail: patientWithUser.user.email,
-            doctorName: doctorWithUser.user.name,
-            date: appointment.date,
-            reason: appointment.reason,
-            videoCallLink: link,
-          });
-        }
-      } catch (err) {
-        console.error("[Email] Failed to send video link email:", err);
-      }
-    });
-  });
-
   // === Prescriptions ===
   app.get(api.prescriptions.list.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
