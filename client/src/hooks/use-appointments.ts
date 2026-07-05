@@ -7,7 +7,9 @@ export function useAppointments() {
   return useQuery({
     queryKey: [api.appointments.list.path],
     queryFn: async () => {
-      const res = await fetch(api.appointments.list.path);
+      const res = await fetch(api.appointments.list.path, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to fetch appointments");
       return api.appointments.list.responses[200].parse(await res.json());
     },
@@ -20,22 +22,29 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (data: z.infer<typeof api.appointments.create.input>) => {
-      // Coerce dates to ISO strings if needed, though Zod handles it usually if setup right.
-      // API expects Date object or ISO string. JSON.stringify handles Date -> ISO string.
       const res = await fetch(api.appointments.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || "Failed to create appointment");
+        if (res.status === 401) throw new Error("Session expired. Please log in again.");
+        const contentType = res.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          const error = await res.json();
+          throw new Error(error.message || "Failed to create appointment");
+        }
+        throw new Error(`Booking failed (${res.status})`);
       }
       return api.appointments.create.responses[201].parse(await res.json());
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [api.appointments.list.path] });
+      queryClient.invalidateQueries({
+        queryKey: [api.appointments.list.path],
+        refetchType: "all",
+      });
       toast({ title: "Success", description: "Appointment booked successfully!" });
     },
     onError: (error: Error) => {
@@ -55,13 +64,19 @@ export function useUpdateAppointmentStatus() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
+        credentials: "include",
       });
 
       if (!res.ok) throw new Error("Failed to update status");
       return api.appointments.updateStatus.responses[200].parse(await res.json());
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [api.appointments.list.path] });
+      // refetchType: 'all' ensures Dashboard and Analytics also update
+      // even if they are not the currently active page
+      queryClient.invalidateQueries({
+        queryKey: [api.appointments.list.path],
+        refetchType: "all",
+      });
       toast({ title: "Status Updated", description: `Appointment marked as ${variables.status}` });
     },
     onError: (error: Error) => {

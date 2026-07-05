@@ -42,6 +42,7 @@ export interface IStorage {
   getAppointmentsByPatient(patientId: number): Promise<AppointmentWithDetails[]>;
   getAppointmentsByDoctor(doctorId: number): Promise<AppointmentWithDetails[]>;
   updateAppointmentStatus(id: number, status: UpdateAppointmentStatus["status"]): Promise<Appointment>;
+  updateVideoCallLink(id: number, link: string): Promise<Appointment>;
 
   // Prescription
   createPrescription(prescription: InsertPrescription): Promise<Prescription>;
@@ -231,6 +232,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(appointments)
       .set({ status })
+      .where(eq(appointments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateVideoCallLink(id: number, link: string): Promise<Appointment> {
+    const [updated] = await db
+      .update(appointments)
+      .set({ videoCallLink: link })
       .where(eq(appointments.id, id))
       .returning();
     return updated;

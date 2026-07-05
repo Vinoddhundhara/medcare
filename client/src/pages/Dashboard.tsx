@@ -81,6 +81,9 @@ export default function Dashboard() {
   const totalAppointments = appointments?.length || 0;
   const pendingAppointments = appointments?.filter((a: any) => a.status === "pending").length || 0;
   const confirmedAppointments = appointments?.filter((a: any) => a.status === "confirmed").length || 0;
+  const upcomingAppointments = appointments?.filter((a: any) =>
+    ["pending", "confirmed"].includes(a.status)
+  ) || [];
 
   return (
     <div className="space-y-8">
@@ -147,14 +150,14 @@ export default function Dashboard() {
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
               </div>
             ) : (
-              <AppointmentList appointments={appointments || []} role={role} />
+              <AppointmentList appointments={upcomingAppointments} role={role} />
             )}
           </CardContent>
         </Card>
 
         <Card className="md:col-span-3 border-border/60 shadow-sm">
           <CardHeader>
-            <CardTitle>{isDoctor ? "Quick Actions" : "Health Overview"}</CardTitle>
+            <CardTitle>{isDoctor ? "Quick Actions" : "Quick Actions"}</CardTitle>
           </CardHeader>
           <CardContent>
             {isDoctor ? (
@@ -169,28 +172,29 @@ export default function Dashboard() {
                     <Activity className="w-4 h-4 mr-2 text-blue-500" /> Write Prescription
                   </Link>
                 </Button>
+                <Button variant="outline" className="w-full justify-start h-12" asChild>
+                  <Link href="/analytics">
+                    <XCircle className="w-4 h-4 mr-2 text-purple-500" /> View Analytics
+                  </Link>
+                </Button>
               </div>
             ) : (
-              <div className="bg-gradient-to-br from-primary/5 to-purple-500/5 rounded-xl p-6">
-                 <div className="flex items-center gap-4 mb-6">
-                    <div className="p-3 bg-white rounded-full shadow-sm">
-                      <Activity className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Vitals</h4>
-                      <p className="text-xs text-muted-foreground">Last updated: 2 days ago</p>
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-white rounded-lg shadow-sm">
-                      <p className="text-xs text-muted-foreground">Heart Rate</p>
-                      <p className="text-lg font-bold text-foreground">72 bpm</p>
-                    </div>
-                    <div className="p-4 bg-white rounded-lg shadow-sm">
-                       <p className="text-xs text-muted-foreground">Blood Pressure</p>
-                       <p className="text-lg font-bold text-foreground">120/80</p>
-                    </div>
-                 </div>
+              <div className="space-y-4">
+                <Button variant="outline" className="w-full justify-start h-12" asChild>
+                  <Link href="/doctors">
+                    <Activity className="w-4 h-4 mr-2 text-primary" /> Find a Doctor
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12" asChild>
+                  <Link href="/appointments">
+                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" /> View Appointments
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12" asChild>
+                  <Link href="/prescriptions">
+                    <XCircle className="w-4 h-4 mr-2 text-blue-500" /> My Prescriptions
+                  </Link>
+                </Button>
               </div>
             )}
           </CardContent>

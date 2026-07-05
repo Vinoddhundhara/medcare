@@ -50,6 +50,7 @@ export const appointments = pgTable("appointments", {
   date: timestamp("date").notNull(),
   status: text("status", { enum: ["pending", "confirmed", "rejected", "completed", "cancelled"] }).default("pending").notNull(),
   reason: text("reason").notNull(),
+  videoCallLink: text("video_call_link"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

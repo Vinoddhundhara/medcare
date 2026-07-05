@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MedCare — Full Project Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 48px 32px; }
+
+  /* Header */
+  .hero { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 20px; padding: 56px 48px; margin-bottom: 48px; text-align: center; }
+  .hero h1 { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
+  .hero p { font-size: 18px; opacity: 0.88; max-width: 600px; margin: 0 auto 24px; }
+  .hero .badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .badge { background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 600; }
+
+  /* Section */
+  .section { background: white; border-radius: 16px; padding: 36px 40px; margin-bottom: 28px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+  .section-title { font-size: 22px; font-weight: 700; color: #1e293b; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .section-sub { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+  .divider { height: 1px; background: #f1f5f9; margin: 20px 0; }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* Cards */
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .card h4 { font-size: 15px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
+  .card p { font-size: 13px; color: #64748b; line-height: 1.6; }
+  .card.accent { border-left: 4px solid #6366f1; }
+  .card.green { border-left: 4px solid #22c55e; }
+  .card.amber { border-left: 4px solid #f59e0b; }
+  .card.red { border-left: 4px solid #ef4444; }
+  .card.blue { border-left: 4px solid #3b82f6; }
+  .card.purple { border-left: 4px solid #8b5cf6; }
+
+  /* Tech stack */
+  .tech-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid #f1f5f9; }
+  .tech-item:last-child { border-bottom: none; }
+  .tech-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .tech-name { font-weight: 700; font-size: 14px; color: #1e293b; }
+  .tech-desc { font-size: 13px; color: #64748b; }
+
+  /* Flow */
+  .flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 16px 0; }
+  .flow-step { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 600; color: #1e40af; white-space: nowrap; }
+  .flow-arrow { color: #94a3b8; font-size: 20px; padding: 0 8px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #f1f5f9; padding: 12px 16px; text-align: left; font-weight: 700; color: #475569; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  /* Role badge */
+  .role { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .role.patient { background: #dbeafe; color: #1e40af; }
+  .role.doctor { background: #d1fae5; color: #065f46; }
+  .role.admin { background: #fef3c7; color: #92400e; }
+  .role.all { background: #f1f5f9; color: #475569; }
+
+  /* DB diagram */
+  .db-table { background: white; border: 2px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+  .db-table-header { background: #6366f1; color: white; padding: 10px 16px; font-weight: 700; font-size: 14px; }
+  .db-table-row { padding: 8px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; display: flex; justify-content: space-between; }
+  .db-table-row:last-child { border-bottom: none; }
+  .db-pk { color: #f59e0b; font-weight: 700; font-size: 11px; }
+  .db-fk { color: #6366f1; font-weight: 700; font-size: 11px; }
+  .db-type { color: #94a3b8; font-size: 12px; }
+
+  /* API route */
+  .route { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+  .route:last-child { border-bottom: none; }
+  .method { padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; min-width: 52px; text-align: center; }
+  .get { background: #dbeafe; color: #1e40af; }
+  .post { background: #d1fae5; color: #065f46; }
+  .patch { background: #fef3c7; color: #92400e; }
+  .route-path { font-family: monospace; font-size: 13px; color: #1e293b; font-weight: 600; }
+  .route-desc { font-size: 13px; color: #64748b; margin-left: auto; }
+
+  /* Feature list */
+  .feature-list { list-style: none; }
+  .feature-list li { padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; display: flex; align-items: flex-start; gap: 10px; }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list li::before { content: "✓"; color: #22c55e; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+  /* Architecture diagram */
+  .arch { display: grid; grid-template-columns: 1fr 80px 1fr 80px 1fr; align-items: center; gap: 0; margin: 24px 0; }
+  .arch-box { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 14px; padding: 20px; text-align: center; }
+  .arch-box h4 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .arch-box p { font-size: 12px; color: #64748b; }
+  .arch-arrow { text-align: center; font-size: 28px; color: #94a3b8; }
+
+  /* Print */
+  @media print {
+    body { background: white; }
+    .page { padding: 24px; }
+    .section { box-shadow: none; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- HERO -->
+<div class="hero">
+  <h1>🏥 MedCare</h1>
+  <p>Doctor Appointment Management System — Full Project Architecture & Technical Documentation</p>
+  <div class="badges">
+    <span class="badge">React 18</span>
+    <span class="badge">Node.js + Express</span>
+    <span class="badge">PostgreSQL</span>
+    <span class="badge">TypeScript</span>
+    <span class="badge">Drizzle ORM</span>
+    <span class="badge">Full Stack</span>
+  </div>
+</div>
+
+<!-- 1. PROJECT OVERVIEW -->
+<div class="section">
+  <div class="section-title">📌 1. Project Overview</div>
+  <div class="section-sub">What is MedCare and why was it built?</div>
+
+  <div class="grid-2">
+    <div>
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#6366f1;">Problem Statement</h3>
+      <p style="font-size:14px;color:#475569;line-height:1.8;">
+        In traditional healthcare, booking a doctor appointment requires phone calls, long waiting times,
+        and manual paperwork. Patients have no visibility into doctor availability, and doctors struggle
+        to manage their schedules efficiently. There is no centralized system for prescriptions,
+        notifications, or video consultations.
+      </p>
+    </div>
+    <div>
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#22c55e;">Our Solution</h3>
+      <p style="font-size:14px;color:#475569;line-height:1.8;">
+        MedCare is a full-stack web application that digitizes the entire doctor appointment lifecycle —
+        from booking to prescription — with real-time email notifications, video consultation links,
+        analytics, and role-based access for patients, doctors, and admins.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="grid-3" style="margin-top:16px;">
+    <div class="card accent">
+      <h4>🎯 Purpose</h4>
+      <p>Simplify healthcare access by providing a digital platform for appointment booking, management, and communication between patients and doctors.</p>
+    </div>
+    <div class="card green">
+      <h4>👥 Target Users</h4>
+      <p>Patients seeking medical care, doctors managing their practice, and hospital administrators overseeing operations.</p>
+    </div>
+    <div class="card blue">
+      <h4>🌍 Real-World Use</h4>
+      <p>Can be deployed for clinics, hospitals, or independent doctors. Scalable to handle thousands of appointments.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 2. SYSTEM ARCHITECTURE -->
+<div class="section">
+  <div class="section-title">🏗️ 2. System Architecture</div>
+  <div class="section-sub">How the different layers of the application communicate</div>
+
+  <div class="arch">
+    <div class="arch-box" style="border-color:#6366f1;">
+      <div style="font-size:32px;margin-bottom:8px;">🖥️</div>
+      <h4 style="color:#6366f1;">Frontend (Client)</h4>
+      <p>React 18 + TypeScript<br/>Vite build tool<br/>TailwindCSS + shadcn/ui<br/>TanStack Query<br/>Wouter Router</p>
+    </div>
+    <div class="arch-arrow">⟷</div>
+    <div class="arch-box" style="border-color:#22c55e;">
+      <div style="font-size:32px;margin-bottom:8px;">⚙️</div>
+      <h4 style="color:#22c55e;">Backend (Server)</h4>
+      <p>Node.js + Express 5<br/>TypeScript + tsx<br/>Passport.js Auth<br/>Express Session<br/>Nodemailer Email</p>
+    </div>
+    <div class="arch-arrow">⟷</div>
+    <div class="arch-box" style="border-color:#f59e0b;">
+      <div style="font-size:32px;margin-bottom:8px;">🗄️</div>
+      <h4 style="color:#f59e0b;">Database</h4>
+      <p>PostgreSQL 18<br/>Drizzle ORM<br/>connect-pg-simple<br/>Session Store<br/>Port 5433</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">Project Folder Structure</h3>
+  <div class="grid-2">
+    <div class="card">
+      <h4>📁 Server (Backend)</h4>
+      <p style="font-family:monospace;font-size:12px;line-height:2;">
+        server/<br/>
+        ├── index.ts &nbsp;&nbsp;&nbsp;&nbsp;← App entry point<br/>
+        ├── routes.ts &nbsp;&nbsp;&nbsp;← All API endpoints<br/>
+        ├── auth.ts &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Passport + sessions<br/>
+        ├── storage.ts &nbsp;&nbsp;← DB query layer<br/>
+        ├── db.ts &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← DB connection<br/>
+        ├── email.ts &nbsp;&nbsp;&nbsp;&nbsp;← Email templates<br/>
+        └── vite.ts &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Dev server setup
+      </p>
+    </div>
+    <div class="card">
+      <h4>📁 Client (Frontend)</h4>
+      <p style="font-family:monospace;font-size:12px;line-height:2;">
+        client/src/<br/>
+        ├── pages/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← All page components<br/>
+        ├── components/ &nbsp;← Reusable UI parts<br/>
+        ├── hooks/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Custom React hooks<br/>
+        ├── lib/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Utilities<br/>
+        ├── App.tsx &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Router setup<br/>
+        └── main.tsx &nbsp;&nbsp;&nbsp;&nbsp;← React entry point
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h4>📁 Shared (Common Types)</h4>
+    <p style="font-family:monospace;font-size:12px;line-height:2;">
+      shared/ ← Used by BOTH frontend and backend<br/>
+      ├── schema.ts &nbsp;&nbsp;← Database table definitions + TypeScript types<br/>
+      └── routes.ts &nbsp;&nbsp;← API route definitions + Zod validation schemas
+    </p>
+  </div>
+</div>
+
+<!-- 3. TECH STACK -->
+<div class="section">
+  <div class="section-title">🛠️ 3. Technology Stack</div>
+  <div class="section-sub">Every technology used and the reason it was chosen</div>
+
+  <div class="grid-2">
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;color:#6366f1;">Frontend</h3>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#dbeafe;">⚛️</div>
+        <div><div class="tech-name">React 18</div><div class="tech-desc">UI library for building interactive components. Used for all pages and state management.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fef3c7;">📘</div>
+        <div><div class="tech-name">TypeScript</div><div class="tech-desc">Adds type safety to JavaScript. Catches bugs at compile time, not runtime.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#d1fae5;">⚡</div>
+        <div><div class="tech-name">Vite</div><div class="tech-desc">Ultra-fast build tool and dev server. Replaces Create React App with much better performance.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#ede9fe;">🎨</div>
+        <div><div class="tech-name">TailwindCSS + shadcn/ui</div><div class="tech-desc">Utility-first CSS framework + pre-built accessible components. Enables rapid UI development.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fee2e2;">🔄</div>
+        <div><div class="tech-name">TanStack Query (React Query)</div><div class="tech-desc">Server state management. Handles caching, background refetching, and loading states automatically.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#f0fdf4;">🧭</div>
+        <div><div class="tech-name">Wouter</div><div class="tech-desc">Lightweight client-side router. Handles page navigation without full page reloads.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fef9c3;">📊</div>
+        <div><div class="tech-name">Recharts</div><div class="tech-desc">Chart library for the Analytics page. Renders bar charts, pie charts for appointment data.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#f0f9ff;">📋</div>
+        <div><div class="tech-name">React Hook Form + Zod</div><div class="tech-desc">Form management + schema validation. Used in registration, booking, and prescription forms.</div></div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;color:#22c55e;">Backend</h3>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#d1fae5;">🟢</div>
+        <div><div class="tech-name">Node.js + Express 5</div><div class="tech-desc">JavaScript runtime + web framework. Handles all HTTP requests, routing, and middleware.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#dbeafe;">🔐</div>
+        <div><div class="tech-name">Passport.js + express-session</div><div class="tech-desc">Authentication middleware. Handles login, logout, and session persistence with cookies.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fef3c7;">🐘</div>
+        <div><div class="tech-name">PostgreSQL</div><div class="tech-desc">Relational database. Stores all users, appointments, prescriptions, and sessions.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#ede9fe;">💧</div>
+        <div><div class="tech-name">Drizzle ORM</div><div class="tech-desc">Type-safe database query builder. Writes SQL queries in TypeScript with full autocomplete.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fee2e2;">📧</div>
+        <div><div class="tech-name">Nodemailer</div><div class="tech-desc">Email sending library. Sends HTML emails via Gmail for appointment events.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#f0fdf4;">🔒</div>
+        <div><div class="tech-name">Scrypt (Node crypto)</div><div class="tech-desc">Password hashing algorithm. Passwords are never stored in plain text.</div></div>
+      </div>
+      <div class="tech-item">
+        <div class="tech-icon" style="background:#fef9c3;">✅</div>
+        <div><div class="tech-name">Zod</div><div class="tech-desc">Runtime schema validation. Validates all incoming API request data before processing.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. DATABASE DESIGN -->
+<div class="section">
+  <div class="section-title">🗄️ 4. Database Design</div>
+  <div class="section-sub">6 tables with relationships — designed for a real healthcare system</div>
+
+  <div class="grid-3" style="margin-bottom:24px;">
+    <div class="db-table">
+      <div class="db-table-header">👤 users</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>username</span><span class="db-type">text UNIQUE</span></div>
+      <div class="db-table-row"><span>password</span><span class="db-type">text (hashed)</span></div>
+      <div class="db-table-row"><span>role</span><span class="db-type">patient|doctor|admin</span></div>
+      <div class="db-table-row"><span>name</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>email</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>created_at</span><span class="db-type">timestamp</span></div>
+    </div>
+    <div class="db-table">
+      <div class="db-table-header">🏥 patients</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>user_id</span><span class="db-fk">FK → users</span></div>
+      <div class="db-table-row"><span>age</span><span class="db-type">integer</span></div>
+      <div class="db-table-row"><span>gender</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>contact</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>medical_history</span><span class="db-type">text</span></div>
+    </div>
+    <div class="db-table">
+      <div class="db-table-header">👨‍⚕️ doctors</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>user_id</span><span class="db-fk">FK → users</span></div>
+      <div class="db-table-row"><span>hospital_id</span><span class="db-fk">FK → hospitals</span></div>
+      <div class="db-table-row"><span>specialization</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>experience</span><span class="db-type">integer (years)</span></div>
+      <div class="db-table-row"><span>consultation_fee</span><span class="db-type">integer</span></div>
+      <div class="db-table-row"><span>availability</span><span class="db-type">jsonb (array)</span></div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="db-table">
+      <div class="db-table-header">🏨 hospitals</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>name</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>location</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>contact</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>specializations</span><span class="db-type">text[]</span></div>
+      <div class="db-table-row"><span>image_url</span><span class="db-type">text</span></div>
+    </div>
+    <div class="db-table">
+      <div class="db-table-header">📅 appointments</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>patient_id</span><span class="db-fk">FK → patients</span></div>
+      <div class="db-table-row"><span>doctor_id</span><span class="db-fk">FK → doctors</span></div>
+      <div class="db-table-row"><span>date</span><span class="db-type">timestamp</span></div>
+      <div class="db-table-row"><span>status</span><span class="db-type">pending|confirmed|...</span></div>
+      <div class="db-table-row"><span>reason</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>video_call_link</span><span class="db-type">text (nullable)</span></div>
+    </div>
+    <div class="db-table">
+      <div class="db-table-header">💊 prescriptions</div>
+      <div class="db-table-row"><span>id</span><span class="db-pk">PK</span></div>
+      <div class="db-table-row"><span>appointment_id</span><span class="db-fk">FK → appointments</span></div>
+      <div class="db-table-row"><span>medicines</span><span class="db-type">jsonb (array)</span></div>
+      <div class="db-table-row"><span>instructions</span><span class="db-type">text</span></div>
+      <div class="db-table-row"><span>date</span><span class="db-type">timestamp</span></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div class="card" style="margin-top:16px;">
+    <h4>🔗 Relationships</h4>
+    <p style="font-size:13px;line-height:2.2;">
+      <strong>users → patients</strong>: One-to-One (each patient has one user account)<br/>
+      <strong>users → doctors</strong>: One-to-One (each doctor has one user account)<br/>
+      <strong>hospitals → doctors</strong>: One-to-Many (a hospital has many doctors)<br/>
+      <strong>patients → appointments</strong>: One-to-Many (a patient can have many appointments)<br/>
+      <strong>doctors → appointments</strong>: One-to-Many (a doctor can have many appointments)<br/>
+      <strong>appointments → prescriptions</strong>: One-to-One (each appointment has one prescription)
+    </p>
+  </div>
+</div>
+
+<!-- 5. API ROUTES -->
+<div class="section">
+  <div class="section-title">🔌 5. API Endpoints</div>
+  <div class="section-sub">All REST API routes with method, path, and access control</div>
+
+  <h3 style="font-size:14px;font-weight:700;color:#6366f1;margin-bottom:12px;">Authentication</h3>
+  <div class="route"><span class="method post">POST</span><span class="route-path">/api/register</span><span class="route-desc">Register new user (patient/doctor)</span></div>
+  <div class="route"><span class="method post">POST</span><span class="route-path">/api/login</span><span class="route-desc">Login with username + password</span></div>
+  <div class="route"><span class="method post">POST</span><span class="route-path">/api/logout</span><span class="route-desc">Logout and destroy session</span></div>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/user</span><span class="route-desc">Get current logged-in user</span></div>
+
+  <div class="divider"></div>
+  <h3 style="font-size:14px;font-weight:700;color:#6366f1;margin:12px 0;">Doctors &amp; Hospitals</h3>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/doctors</span><span class="route-desc">List all doctors (with filters: specialization, search)</span></div>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/doctors/:id</span><span class="route-desc">Get single doctor with full details</span></div>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/hospitals</span><span class="route-desc">List all hospitals</span></div>
+
+  <div class="divider"></div>
+  <h3 style="font-size:14px;font-weight:700;color:#6366f1;margin:12px 0;">Appointments</h3>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/appointments</span><span class="route-desc">Get appointments for logged-in user (role-based)</span></div>
+  <div class="route"><span class="method post">POST</span><span class="route-path">/api/appointments</span><span class="route-desc">Book new appointment (patient only)</span></div>
+  <div class="route"><span class="method patch">PATCH</span><span class="route-path">/api/appointments/:id/status</span><span class="route-desc">Update status (doctor: confirm/reject/complete, patient: cancel)</span></div>
+  <div class="route"><span class="method patch">PATCH</span><span class="route-path">/api/appointments/:id/video-link</span><span class="route-desc">Add video call link (doctor only, confirmed appointments)</span></div>
+
+  <div class="divider"></div>
+  <h3 style="font-size:14px;font-weight:700;color:#6366f1;margin:12px 0;">Prescriptions &amp; Profile</h3>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/prescriptions</span><span class="route-desc">Get prescriptions for logged-in user</span></div>
+  <div class="route"><span class="method post">POST</span><span class="route-path">/api/prescriptions</span><span class="route-desc">Create prescription (doctor only)</span></div>
+  <div class="route"><span class="method get">GET</span><span class="route-path">/api/profile</span><span class="route-desc">Get full profile (user + patient/doctor details)</span></div>
+  <div class="route"><span class="method patch">PATCH</span><span class="route-path">/api/profile</span><span class="route-desc">Update profile information</span></div>
+</div>
+
+<!-- 6. FEATURES BY ROLE -->
+<div class="section">
+  <div class="section-title">👥 6. Features by User Role</div>
+  <div class="section-sub">What each type of user can do in the system</div>
+
+  <div class="grid-3">
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;"><span class="role patient">Patient</span></h3>
+      <ul class="feature-list">
+        <li>Register with personal + medical details</li>
+        <li>Browse and search doctors by specialization</li>
+        <li>Book appointments with date, time, reason</li>
+        <li>Cancel pending or confirmed appointments</li>
+        <li>View appointment history (upcoming + past)</li>
+        <li>Receive email on booking confirmation</li>
+        <li>Receive email on status changes</li>
+        <li>Join video call via doctor-provided link</li>
+        <li>View prescriptions from doctors</li>
+        <li>Get smart notifications with alerts</li>
+        <li>Edit personal profile and medical history</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;"><span class="role doctor">Doctor</span></h3>
+      <ul class="feature-list">
+        <li>Register with specialization, fee, availability</li>
+        <li>View all incoming appointment requests</li>
+        <li>Confirm or reject appointment requests</li>
+        <li>Mark appointments as completed</li>
+        <li>Add video call link to confirmed appointments</li>
+        <li>Write prescriptions with medicines + dosage</li>
+        <li>View all prescriptions written</li>
+        <li>View analytics: charts, stats, trends</li>
+        <li>Get notified of new booking requests</li>
+        <li>Edit professional profile and availability</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;"><span class="role admin">Admin</span></h3>
+      <ul class="feature-list">
+        <li>Access the dashboard overview</li>
+        <li>View system-wide statistics</li>
+        <li>Manage hospitals and specializations</li>
+        <li>View analytics and reports</li>
+        <li>Edit own profile</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 7. PAGE BREAKDOWN -->
+<div class="section">
+  <div class="section-title">📄 7. Application Pages</div>
+  <div class="section-sub">Every page in the application and what it does</div>
+
+  <table>
+    <thead>
+      <tr><th>Page</th><th>Route</th><th>Access</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>🏠 Home</td><td>/</td><td><span class="role all">Public</span></td><td>Landing page with features overview and call-to-action buttons</td></tr>
+      <tr><td>🔐 Login</td><td>/login</td><td><span class="role all">Public</span></td><td>Username + password login form with session cookie</td></tr>
+      <tr><td>📝 Register</td><td>/register</td><td><span class="role all">Public</span></td><td>Role-based registration — different fields for patient vs doctor</td></tr>
+      <tr><td>📊 Dashboard</td><td>/dashboard</td><td><span class="role all">All roles</span></td><td>Stats cards, upcoming appointments list, quick action buttons</td></tr>
+      <tr><td>🔍 Find Doctors</td><td>/doctors</td><td><span class="role patient">Patient</span></td><td>Search/filter doctors, view profiles, book appointments</td></tr>
+      <tr><td>📅 Appointments</td><td>/appointments</td><td><span class="role patient">Patient</span> <span class="role doctor">Doctor</span></td><td>Upcoming + history tabs, confirm/reject/cancel, video call link</td></tr>
+      <tr><td>💊 Prescriptions</td><td>/prescriptions</td><td><span class="role patient">Patient</span> <span class="role doctor">Doctor</span></td><td>View prescriptions; doctors can write new ones</td></tr>
+      <tr><td>📈 Analytics</td><td>/analytics</td><td><span class="role doctor">Doctor</span> <span class="role admin">Admin</span></td><td>Bar charts, pie charts, appointment trends, patient stats</td></tr>
+      <tr><td>🔔 Notifications</td><td>/notifications</td><td><span class="role patient">Patient</span> <span class="role doctor">Doctor</span></td><td>Smart alerts, expandable cards, per-notification read tracking</td></tr>
+      <tr><td>👤 Profile</td><td>/profile</td><td><span class="role all">All roles</span></td><td>View and edit personal/professional information</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 8. EMAIL SYSTEM -->
+<div class="section">
+  <div class="section-title">📧 8. Email Notification System</div>
+  <div class="section-sub">Automated HTML emails sent at every key appointment event</div>
+
+  <div class="grid-2">
+    <div class="card green">
+      <h4>📬 When Appointment is Booked</h4>
+      <p><strong>Patient receives:</strong> Appointment confirmation with doctor name, date, time, hospital, reason, and status badge.<br/><br/>
+      <strong>Doctor receives:</strong> New request alert with patient name, age, gender, date, and action prompt to log in.</p>
+    </div>
+    <div class="card blue">
+      <h4>🔄 When Status Changes</h4>
+      <p><strong>Confirmed:</strong> Patient gets green confirmation email with arrival tips.<br/><br/>
+      <strong>Rejected:</strong> Patient gets red email suggesting to rebook.<br/><br/>
+      <strong>Completed:</strong> Patient gets blue email with prescription reminder.<br/><br/>
+      <strong>Cancelled:</strong> Patient gets grey email with rebooking suggestion.</p>
+    </div>
+    <div class="card purple">
+      <h4>🎥 When Video Link is Added</h4>
+      <p>Patient receives a professional email with a large "Join Video Call" button, the meeting link, appointment details, and tips for a smooth video consultation.</p>
+    </div>
+    <div class="card amber">
+      <h4>⚙️ Technical Implementation</h4>
+      <p><strong>Library:</strong> Nodemailer v6<br/>
+      <strong>Provider:</strong> Gmail (App Password)<br/>
+      <strong>Method:</strong> setImmediate() — emails sent in background, never blocking API response<br/>
+      <strong>Templates:</strong> Pure HTML/CSS inline styles for email client compatibility</p>
+    </div>
+  </div>
+</div>
+
+<!-- 9. AUTHENTICATION -->
+<div class="section">
+  <div class="section-title">🔐 9. Authentication &amp; Security</div>
+  <div class="section-sub">How users are authenticated and data is protected</div>
+
+  <div class="grid-2">
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">Login Flow</h3>
+      <div class="flow">
+        <div class="flow-step">User submits credentials</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Passport LocalStrategy</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Scrypt hash compare</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Session cookie set</div>
+      </div>
+      <div class="flow" style="margin-top:12px;">
+        <div class="flow-step">Next request</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Cookie sent</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Session lookup in DB</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">req.user populated</div>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;">Security Measures</h3>
+      <ul class="feature-list">
+        <li>Passwords hashed with Scrypt + random salt (never stored plain)</li>
+        <li>Sessions stored in PostgreSQL (not memory)</li>
+        <li>All sensitive routes check req.isAuthenticated()</li>
+        <li>Role-based access: patients can't access doctor routes</li>
+        <li>Ownership checks: doctors can only modify their own appointments</li>
+        <li>All fetch calls use credentials: "include" for cookie auth</li>
+        <li>Zod validates all incoming request bodies</li>
+        <li>URL encoding for special characters in DB connection string</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 10. KEY FEATURES DEEP DIVE -->
+<div class="section">
+  <div class="section-title">⭐ 10. Key Features Deep Dive</div>
+  <div class="section-sub">The most important features and how they work technically</div>
+
+  <div class="grid-2" style="gap:20px;">
+    <div class="card accent">
+      <h4>🔔 Smart Notification System</h4>
+      <p>
+        Notifications are computed client-side from appointment data — no separate DB table needed.
+        Each notification has a unique ID. Seen IDs are stored in localStorage per user.
+        The sidebar Bell icon shows a red dot badge with count of unseen notifications.
+        Clicking a notification marks it as seen and removes the alert instantly.
+      </p>
+    </div>
+    <div class="card green">
+      <h4>🎥 Video Call Integration</h4>
+      <p>
+        Works with any video platform (Google Meet, Zoom, Teams).
+        Doctor pastes a link on confirmed appointments. Link is saved to the appointments table.
+        Patient sees a "Join Call" button. An email with the link is sent automatically.
+        URL validation ensures only valid links are accepted.
+      </p>
+    </div>
+    <div class="card blue">
+      <h4>📊 Real-time Data Updates</h4>
+      <p>
+        TanStack Query with staleTime: 0 ensures data is always fresh.
+        After any mutation (confirm, cancel, prescribe), invalidateQueries with refetchType: "all"
+        forces all pages (Dashboard, Analytics, Appointments) to refetch simultaneously,
+        even if they are not currently visible.
+      </p>
+    </div>
+    <div class="card purple">
+      <h4>💊 Prescription System</h4>
+      <p>
+        Doctors write prescriptions linked to specific appointments.
+        Each prescription stores medicines as a JSON array with name, dosage, and frequency.
+        Writing a prescription automatically marks the appointment as "completed".
+        Patients can view all their prescriptions in one place.
+      </p>
+    </div>
+    <div class="card amber">
+      <h4>🛡️ Role-Based Access Control</h4>
+      <p>
+        Three roles: patient, doctor, admin. Each role sees different sidebar links.
+        ProtectedRoute component blocks unauthorized access at the frontend.
+        Every API endpoint independently verifies the user's role and ownership.
+        Double security: both client and server enforce access rules.
+      </p>
+    </div>
+    <div class="card red">
+      <h4>📈 Analytics Dashboard</h4>
+      <p>
+        Available to doctors and admins only. Shows appointment trends over the last 7 days
+        as a bar chart, status breakdown as a pie chart, and most active patients as a
+        horizontal bar chart. All computed from live appointment data using Recharts.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- 11. DATA FLOW -->
+<div class="section">
+  <div class="section-title">🔄 11. Complete Appointment Data Flow</div>
+  <div class="section-sub">Step-by-step journey of an appointment from booking to completion</div>
+
+  <table>
+    <thead><tr><th>Step</th><th>Action</th><th>Who</th><th>What Happens</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Browse Doctors</td><td>Patient</td><td>GET /api/doctors — filtered list shown with specialization, fee, hospital</td></tr>
+      <tr><td>2</td><td>Book Appointment</td><td>Patient</td><td>POST /api/appointments — status set to "pending", emails sent to both parties</td></tr>
+      <tr><td>3</td><td>Review Request</td><td>Doctor</td><td>Doctor sees pending request in Appointments page with patient details</td></tr>
+      <tr><td>4</td><td>Confirm / Reject</td><td>Doctor</td><td>PATCH /api/appointments/:id/status — patient receives status email</td></tr>
+      <tr><td>5</td><td>Add Video Link</td><td>Doctor</td><td>PATCH /api/appointments/:id/video-link — patient gets email with Join button</td></tr>
+      <tr><td>6</td><td>Join Video Call</td><td>Patient</td><td>Patient clicks "Join Call" button on Appointments page or email link</td></tr>
+      <tr><td>7</td><td>Write Prescription</td><td>Doctor</td><td>POST /api/prescriptions — appointment auto-marked completed</td></tr>
+      <tr><td>8</td><td>View Prescription</td><td>Patient</td><td>GET /api/prescriptions — patient sees medicines, dosage, instructions</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 12. WHY THIS PROJECT -->
+<div class="section">
+  <div class="section-title">💡 12. Why I Built This Project</div>
+  <div class="section-sub">Motivation, learning outcomes, and real-world impact</div>
+
+  <div class="grid-3">
+    <div class="card accent">
+      <h4>🎓 Learning Goals</h4>
+      <p>
+        To build a complete full-stack application from scratch using modern technologies.
+        Learn how to design a relational database, build a REST API, implement authentication,
+        and create a responsive React frontend — all connected together.
+      </p>
+    </div>
+    <div class="card green">
+      <h4>🌍 Real-World Problem</h4>
+      <p>
+        Healthcare appointment management is still largely manual in many places.
+        Long phone queues, missed appointments, and no digital records are common problems.
+        MedCare solves this with a digital-first approach accessible from any browser.
+      </p>
+    </div>
+    <div class="card blue">
+      <h4>🚀 Industry Relevance</h4>
+      <p>
+        Uses the same tech stack as modern startups: React, Node.js, PostgreSQL, TypeScript.
+        Implements real features like email notifications, video calls, and analytics
+        that are found in production healthcare systems like Practo and Zocdoc.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3 style="font-size:15px;font-weight:700;margin:20px 0 16px;">What I Learned</h3>
+  <div class="grid-2">
+    <ul class="feature-list">
+      <li>Designing normalized relational database schemas</li>
+      <li>Building type-safe APIs with TypeScript end-to-end</li>
+      <li>Implementing session-based authentication with Passport.js</li>
+      <li>Secure password hashing with Scrypt algorithm</li>
+      <li>Role-based access control on both client and server</li>
+    </ul>
+    <ul class="feature-list">
+      <li>Sending HTML emails with Nodemailer and Gmail</li>
+      <li>Managing server state with TanStack Query</li>
+      <li>Building reusable React components with TypeScript</li>
+      <li>Using Drizzle ORM for type-safe database queries</li>
+      <li>Deploying a full-stack app with a single server</li>
+    </ul>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div style="text-align:center;padding:40px 0 20px;color:#94a3b8;font-size:13px;">
+  <p style="font-size:20px;margin-bottom:8px;">🏥 MedCare — Doctor Appointment Management System</p>
+  <p>Built with React · Node.js · PostgreSQL · TypeScript · Drizzle ORM · Nodemailer</p>
+  <p style="margin-top:8px;">© 2026 MedCare. All rights reserved.</p>
+</div>
+
+</div><!-- end .page -->
+</body>
+</html>

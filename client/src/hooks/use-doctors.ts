@@ -19,7 +19,7 @@ export function useDoctors(params?: DoctorSearchParams) {
         if (params.hospitalId) url.searchParams.set("hospitalId", params.hospitalId);
       }
 
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch doctors");
       return api.doctors.list.responses[200].parse(await res.json());
     },
@@ -31,7 +31,7 @@ export function useDoctor(id: number) {
     queryKey: [api.doctors.get.path, id],
     queryFn: async () => {
       const url = buildUrl(api.doctors.get.path, { id });
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch doctor details");
       return api.doctors.get.responses[200].parse(await res.json());
     },

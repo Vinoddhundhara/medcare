@@ -5,7 +5,7 @@ export function useHospitals() {
   return useQuery({
     queryKey: [api.hospitals.list.path],
     queryFn: async () => {
-      const res = await fetch(api.hospitals.list.path);
+      const res = await fetch(api.hospitals.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch hospitals");
       return api.hospitals.list.responses[200].parse(await res.json());
     },

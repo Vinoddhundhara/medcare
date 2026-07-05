@@ -1,29 +1,34 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  User, 
-  LogOut, 
-  Stethoscope, 
-  FileText, 
-  Settings 
+import { useNotifications } from "@/hooks/use-notifications";
+import {
+  LayoutDashboard,
+  Calendar,
+  User,
+  LogOut,
+  Stethoscope,
+  FileText,
+  BarChart2,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { count: notifCount } = useNotifications();
 
   if (!user) return null;
 
   const links = [
-    { href: "/dashboard", label: "Overview", icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
-    { href: "/appointments", label: "Appointments", icon: Calendar, roles: ["patient", "doctor"] },
-    { href: "/doctors", label: "Find Doctors", icon: Stethoscope, roles: ["patient"] },
-    { href: "/prescriptions", label: "Prescriptions", icon: FileText, roles: ["patient", "doctor"] },
-    { href: "/profile", label: "Profile", icon: User, roles: ["patient", "doctor", "admin"] },
+    { href: "/dashboard",      label: "Overview",       icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
+    { href: "/appointments",   label: "Appointments",   icon: Calendar,        roles: ["patient", "doctor"] },
+    { href: "/doctors",        label: "Find Doctors",   icon: Stethoscope,     roles: ["patient"] },
+    { href: "/prescriptions",  label: "Prescriptions",  icon: FileText,        roles: ["patient", "doctor"] },
+    { href: "/analytics",      label: "Analytics",      icon: BarChart2,       roles: ["doctor", "admin"] },
+    { href: "/notifications",  label: "Notifications",  icon: Bell,            roles: ["patient", "doctor"], badge: notifCount },
+    { href: "/profile",        label: "Profile",        icon: User,            roles: ["patient", "doctor", "admin"] },
   ];
 
   const filteredLinks = links.filter(link => link.roles.includes(user.role));
@@ -40,6 +45,8 @@ export function Sidebar() {
       <nav className="flex-1 px-4 py-4 space-y-2">
         {filteredLinks.map((link) => {
           const isActive = location === link.href || location.startsWith(`${link.href}/`);
+          const hasBadge = (link as any).badge > 0;
+
           return (
             <Link key={link.href} href={link.href}>
               <div
@@ -50,8 +57,17 @@ export function Sidebar() {
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <link.icon className="w-5 h-5" />
-                {link.label}
+                {/* Icon with optional red dot */}
+                <div className="relative shrink-0">
+                  <link.icon className="w-5 h-5" />
+                  {hasBadge && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white leading-none">
+                      {(link as any).badge > 9 ? "9+" : (link as any).badge}
+                    </span>
+                  )}
+                </div>
+
+                <span className="flex-1">{link.label}</span>
               </div>
             </Link>
           );
@@ -68,8 +84,8 @@ export function Sidebar() {
             <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
           </div>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => logout()}
         >

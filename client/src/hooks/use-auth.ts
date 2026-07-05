@@ -10,7 +10,7 @@ export function useAuth() {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      const res = await fetch(api.auth.me.path);
+      const res = await fetch(api.auth.me.path, { credentials: "include" });
       if (res.status === 401) return null;
       if (!res.ok) throw new Error("Failed to fetch user");
       return api.auth.me.responses[200].parse(await res.json());
@@ -25,6 +25,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
+        credentials: "include",
       });
 
       if (!res.ok) {
@@ -44,7 +45,7 @@ export function useAuth() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(api.auth.logout.path, { method: "POST" });
+      const res = await fetch(api.auth.logout.path, { method: "POST", credentials: "include" });
       if (!res.ok) throw new Error("Logout failed");
     },
     onSuccess: () => {
@@ -56,11 +57,11 @@ export function useAuth() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterUserRequest) => {
-      // Validate with Schema before sending if possible, but definitely parse response
       const res = await fetch(api.auth.register.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
+        credentials: "include",
       });
 
       if (!res.ok) {

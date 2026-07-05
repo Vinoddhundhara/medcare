@@ -10,6 +10,10 @@ import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import FindDoctors from "@/pages/FindDoctors";
 import Appointments from "@/pages/Appointments";
+import Prescriptions from "@/pages/Prescriptions";
+import Analytics from "@/pages/Analytics";
+import Notifications from "@/pages/Notifications";
+import Profile from "@/pages/Profile";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 
@@ -31,6 +35,18 @@ function Router() {
         </Route>
         <Route path="/appointments">
           <ProtectedRoute component={Appointments} />
+        </Route>
+        <Route path="/prescriptions">
+          <ProtectedRoute component={Prescriptions} allowedRoles={["patient", "doctor"]} />
+        </Route>
+        <Route path="/analytics">
+          <ProtectedRoute component={Analytics} allowedRoles={["doctor", "admin"]} />
+        </Route>
+        <Route path="/notifications">
+          <ProtectedRoute component={Notifications} allowedRoles={["patient", "doctor"]} />
+        </Route>
+        <Route path="/profile">
+          <ProtectedRoute component={Profile} />
         </Route>
 
         {/* Fallback */}

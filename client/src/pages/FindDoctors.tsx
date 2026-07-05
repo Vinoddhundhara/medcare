@@ -24,9 +24,12 @@ function BookAppointmentDialog({ doctor }: { doctor: any }) {
 
   // Simplified form - in production use a nice Calendar component
   const formSchema = z.object({
-    date: z.string().min(1, "Date is required"),
+    date: z.string().min(1, "Date is required").refine(
+      (d) => new Date(d) >= new Date(new Date().toDateString()),
+      "Date cannot be in the past"
+    ),
     time: z.string().min(1, "Time is required"),
-    reason: z.string().min(5, "Reason is required"),
+    reason: z.string().min(5, "Please describe your reason (min 5 characters)"),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
