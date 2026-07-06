@@ -5,8 +5,10 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Calendar, ChevronDown, ChevronUp, Circle } from "lucide-react";
+import { Bell, Calendar, ChevronDown, ChevronUp, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 const TYPE_LABELS: Record<string, string> = {
   upcoming:  "Reminder",
@@ -15,6 +17,7 @@ const TYPE_LABELS: Record<string, string> = {
   completed: "Completed",
   pending:   "Pending",
   cancelled: "Cancelled",
+  medicine:  "Medicine",
 };
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
@@ -24,9 +27,9 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
   completed: "bg-blue-100 text-blue-800",
   pending:   "bg-amber-100 text-amber-800",
   cancelled: "bg-gray-100 text-gray-800",
+  medicine:  "bg-purple-100 text-purple-800",
 };
 
-// Extra detail text per notification type
 const TYPE_DETAIL: Record<string, string> = {
   upcoming:  "Make sure you arrive on time. Bring any relevant medical documents or test results.",
   confirmed: "Your appointment is confirmed. You will receive a reminder before the visit.",
@@ -34,6 +37,7 @@ const TYPE_DETAIL: Record<string, string> = {
   completed: "This appointment has been completed. Check your Prescriptions page for any medicines prescribed.",
   pending:   "Your request is waiting for the doctor to respond. You will be notified once confirmed.",
   cancelled: "This appointment was cancelled. You can book a new one anytime.",
+  medicine:  "It's time to take your medicine as scheduled. Consistent timing helps your medication work effectively. Visit AI Assistant → Medicine Reminders to manage your schedule.",
 };
 
 export default function Notifications() {
@@ -151,8 +155,13 @@ export default function Notifications() {
                   {isOpen && (
                     <div className="mt-4 pt-4 border-t border-black/5">
                       <p className="text-sm text-foreground/80 leading-relaxed">
-                        {TYPE_DETAIL[n.type]}
+                        {TYPE_DETAIL[n.type] ?? ""}
                       </p>
+                      {n.type === "medicine" && (
+                        <Button size="sm" variant="outline" className="mt-3" asChild>
+                          <Link href="/ai-assistant">Manage Reminders</Link>
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardContent>

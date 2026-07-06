@@ -11,6 +11,7 @@ import {
   FileText,
   BarChart2,
   Bell,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,13 +23,14 @@ export function Sidebar() {
   if (!user) return null;
 
   const links = [
-    { href: "/dashboard",      label: "Overview",       icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
-    { href: "/appointments",   label: "Appointments",   icon: Calendar,        roles: ["patient", "doctor"] },
-    { href: "/doctors",        label: "Find Doctors",   icon: Stethoscope,     roles: ["patient"] },
-    { href: "/prescriptions",  label: "Prescriptions",  icon: FileText,        roles: ["patient", "doctor"] },
-    { href: "/analytics",      label: "Analytics",      icon: BarChart2,       roles: ["doctor", "admin"] },
-    { href: "/notifications",  label: "Notifications",  icon: Bell,            roles: ["patient", "doctor"], badge: notifCount },
-    { href: "/profile",        label: "Profile",        icon: User,            roles: ["patient", "doctor", "admin"] },
+    { href: "/dashboard",      label: "Overview",           icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
+    { href: "/appointments",   label: "Appointments",       icon: Calendar,        roles: ["patient", "doctor"] },
+    { href: "/doctors",        label: "Find Doctors",       icon: Stethoscope,     roles: ["patient"] },
+    { href: "/ai-assistant",   label: "AI Assistant",       icon: Brain,           roles: ["patient"] },
+    { href: "/prescriptions",  label: "Prescriptions",      icon: FileText,        roles: ["patient", "doctor"] },
+    { href: "/analytics",      label: "Analytics",          icon: BarChart2,       roles: ["doctor", "admin"] },
+    { href: "/notifications",  label: "Notifications",      icon: Bell,            roles: ["patient", "doctor"], badge: notifCount },
+    { href: "/profile",        label: "Profile",            icon: User,            roles: ["patient", "doctor", "admin"] },
   ];
 
   const filteredLinks = links.filter(link => link.roles.includes(user.role));

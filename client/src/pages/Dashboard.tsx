@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppointments } from "@/hooks/use-appointments";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Activity, Clock, Plus, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Users, Activity, Clock, Plus, CheckCircle, XCircle, Brain } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -183,6 +183,11 @@ export default function Dashboard() {
                 <Button variant="outline" className="w-full justify-start h-12" asChild>
                   <Link href="/doctors">
                     <Activity className="w-4 h-4 mr-2 text-primary" /> Find a Doctor
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12" asChild>
+                  <Link href="/ai-assistant">
+                    <Brain className="w-4 h-4 mr-2 text-purple-500" /> AI Health Assistant
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-start h-12" asChild>

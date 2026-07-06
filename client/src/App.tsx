@@ -14,8 +14,11 @@ import Prescriptions from "@/pages/Prescriptions";
 import Analytics from "@/pages/Analytics";
 import Notifications from "@/pages/Notifications";
 import Profile from "@/pages/Profile";
+import AIAssistant from "@/pages/AIAssistant";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
+import { MedicineReminderScheduler } from "@/components/MedicineReminderScheduler";
+import { FCMInitializer } from "@/components/FCMInitializer";
 
 function Router() {
   return (
@@ -32,6 +35,9 @@ function Router() {
         </Route>
         <Route path="/doctors">
           <ProtectedRoute component={FindDoctors} allowedRoles={["patient"]} />
+        </Route>
+        <Route path="/ai-assistant">
+          <ProtectedRoute component={AIAssistant} allowedRoles={["patient"]} />
         </Route>
         <Route path="/appointments">
           <ProtectedRoute component={Appointments} />
@@ -60,6 +66,8 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <FCMInitializer />
+        <MedicineReminderScheduler />
         <Router />
         <Toaster />
       </TooltipProvider>

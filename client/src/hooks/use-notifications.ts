@@ -1,14 +1,14 @@
 import { useAppointments } from "@/hooks/use-appointments";
 import { useAuth } from "@/hooks/use-auth";
-import { isAfter, differenceInHours, differenceInDays, format } from "date-fns";
-import { useEffect, useCallback } from "react";
+import { isAfter, differenceInHours, differenceInDays, format, isBefore } from "date-fns";
+import { useEffect, useCallback, useState } from "react";
 import {
-  Bell, CheckCircle, XCircle, Clock, Stethoscope,
+  Bell, CheckCircle, XCircle, Clock, Stethoscope, Pill,
 } from "lucide-react";
 
 export interface AppNotification {
   id: string;
-  type: "upcoming" | "confirmed" | "rejected" | "completed" | "pending" | "cancelled";
+  type: "upcoming" | "confirmed" | "rejected" | "completed" | "pending" | "cancelled" | "medicine";
   title: string;
   message: string;
   time: string;
@@ -17,10 +17,62 @@ export interface AppNotification {
   bg: string;
 }
 
-export function buildNotifications(appointments: any[], role: string): AppNotification[] {
+export function buildMedicineNotifications(reminders: any[]): AppNotification[] {
   const now = new Date();
   const notifications: AppNotification[] = [];
 
+  reminders?.forEach((r: any) => {
+    if (!r.isActive) return;
+
+    const today = format(now, "yyyy-MM-dd");
+    const startDate = new Date(r.startDate);
+    const endDate = r.endDate ? new Date(r.endDate) : null;
+
+    // Skip if not within date range
+    if (isBefore(now, startDate)) return;
+    if (endDate && isAfter(now, endDate)) return;
+
+    const [hours, minutes] = r.time.split(":").map(Number);
+    const scheduledToday = new Date();
+    scheduledToday.setHours(hours, minutes, 0, 0);
+
+    const diffMins = (scheduledToday.getTime() - now.getTime()) / 60000;
+
+    // Due NOW (within ±5 min window)
+    if (Math.abs(diffMins) <= 5) {
+      notifications.push({
+        id: `medicine-due-${r.id}-${today}`,
+        type: "medicine",
+        title: "💊 Time to take your medicine!",
+        message: `Take ${r.medicineName} ${r.dosage} — ${r.frequency}.`,
+        time: r.time,
+        icon: Pill,
+        color: "text-green-600",
+        bg: "bg-green-50 border-green-100",
+      });
+    }
+
+    // Upcoming in next 30 minutes
+    if (diffMins > 5 && diffMins <= 30) {
+      notifications.push({
+        id: `medicine-soon-${r.id}-${today}`,
+        type: "medicine",
+        title: "⏰ Medicine reminder coming up",
+        message: `${r.medicineName} ${r.dosage} is due in ${Math.round(diffMins)} minutes.`,
+        time: r.time,
+        icon: Pill,
+        color: "text-blue-600",
+        bg: "bg-blue-50 border-blue-100",
+      });
+    }
+  });
+
+  return notifications;
+}
+
+export function buildNotifications(appointments: any[], role: string): AppNotification[] {
+  const now = new Date();
+  const notifications: AppNotification[] = [];
   appointments?.forEach((apt: any) => {
     const aptDate = new Date(apt.date);
     const otherName =
@@ -135,6 +187,24 @@ export function buildNotifications(appointments: any[], role: string): AppNotifi
 export function useNotifications() {
   const { user } = useAuth();
   const { data: appointments } = useAppointments();
+  const [reminders, setReminders] = useState<any[]>([]);
+
+  // Fetch medicine reminders
+  useEffect(() => {
+    if (!user || user.role !== "patient") return;
+    const fetchReminders = async () => {
+      try {
+        const res = await fetch("/api/medicine-reminders", { credentials: "include" });
+        if (res.ok) setReminders(await res.json());
+      } catch {
+        // silently fail
+      }
+    };
+    fetchReminders();
+    // Refresh every 2 minutes to pick up newly added reminders
+    const interval = setInterval(fetchReminders, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const storageKey = user ? `seen-notifications-${user.id}` : null;
 
@@ -150,9 +220,10 @@ export function useNotifications() {
 
   const markAllSeen = useCallback(() => {
     if (!storageKey || !appointments || !user) return;
-    const all = buildNotifications(appointments, user.role).map(n => n.id);
-    localStorage.setItem(storageKey, JSON.stringify(all));
-  }, [storageKey, appointments, user]);
+    const apptNotifs = buildNotifications(appointments, user.role).map(n => n.id);
+    const medNotifs = buildMedicineNotifications(reminders).map(n => n.id);
+    localStorage.setItem(storageKey, JSON.stringify([...apptNotifs, ...medNotifs]));
+  }, [storageKey, appointments, user, reminders]);
 
   const markOneSeen = useCallback((id: string) => {
     if (!storageKey) return;
@@ -163,9 +234,11 @@ export function useNotifications() {
 
   if (!user || !appointments) return { notifications: [], count: 0, markAllSeen, markOneSeen, getSeenIds };
 
-  const notifications = buildNotifications(appointments, user.role);
+  const apptNotifs = buildNotifications(appointments, user.role);
+  const medNotifs = user.role === "patient" ? buildMedicineNotifications(reminders) : [];
+  const allNotifications = [...medNotifs, ...apptNotifs];
   const seenIds = getSeenIds();
-  const count = notifications.filter(n => !seenIds.has(n.id)).length;
+  const count = allNotifications.filter(n => !seenIds.has(n.id)).length;
 
-  return { notifications, count, markAllSeen, markOneSeen, getSeenIds };
+  return { notifications: allNotifications, count, markAllSeen, markOneSeen, getSeenIds };
 }

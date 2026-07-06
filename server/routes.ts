@@ -2,17 +2,22 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
+import { askAI, analyzeSymptoms, answerMedicalQuestion, recommendMedicines } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
   insertAppointmentSchema,
   insertPrescriptionSchema,
-  users, patients, doctors,
+  insertMedicineReminderSchema,
+  users, patients, doctors, medicineReminders, notificationTokens,
   type InsertPrescription,
+  type InsertMedicineReminder,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { sendAppointmentBookedEmails, sendAppointmentStatusEmail, sendVideoCallLinkEmail } from "./email";
+import { saveDeviceToken, sendReminder } from "./services/notificationService";
+import { sendSmsReminder, sendSms, isSmsReady } from "./services/smsService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -273,6 +278,204 @@ export async function registerRoutes(
      } catch (err) {
        res.status(400).json({ message: "Invalid input" });
      }
+  });
+
+  // === AI Features ===
+  app.post("/api/ai/chat", async (req, res) => {
+    try {
+      const { message } = req.body;
+      const reply = await answerMedicalQuestion(message);
+      res.json({ reply });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "AI request failed" });
+    }
+  });
+
+  app.post("/api/ai/symptoms", async (req, res) => {
+    try {
+      const { symptoms } = req.body;
+      if (!symptoms || typeof symptoms !== 'string') {
+        return res.status(400).json({ error: "Symptoms description is required" });
+      }
+      const analysis = await analyzeSymptoms(symptoms);
+      res.json({ analysis });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Symptom analysis failed" });
+    }
+  });
+
+  app.post("/api/ai/recommend-medicines", async (req, res) => {
+    try {
+      const { condition } = req.body;
+      if (!condition || typeof condition !== 'string') {
+        return res.status(400).json({ error: "Condition is required" });
+      }
+      const recommendation = await recommendMedicines(condition);
+      res.json({ recommendation });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Medicine recommendation failed" });
+    }
+  });
+
+  // === Medicine Reminders ===
+  app.get("/api/medicine-reminders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const reminders = await db.select()
+        .from(medicineReminders)
+        .where(eq(medicineReminders.userId, req.user!.id));
+      res.json(reminders);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch reminders" });
+    }
+  });
+
+  app.post("/api/medicine-reminders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const input = insertMedicineReminderSchema.parse({
+        ...req.body,
+        userId: req.user!.id
+      });
+      const [reminder] = await db.insert(medicineReminders).values(input).returning();
+
+      // Send immediate SMS confirmation to patient's registered phone number
+      setImmediate(async () => {
+        try {
+          const result = await db
+            .select({ contact: patients.contact, name: users.name })
+            .from(patients)
+            .innerJoin(users, eq(patients.userId, users.id))
+            .where(eq(patients.userId, req.user!.id))
+            .limit(1);
+
+          if (result.length && result[0].contact?.trim()) {
+            const { contact, name } = result[0];
+            await sendSms(
+              contact,
+              `✅ MedCare Reminder Confirmed!\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `Hello ${name},\n\n` +
+              `Your medicine reminder has been successfully set on MedCare.\n\n` +
+              `📋 Reminder Details:\n` +
+              `   • Medicine  : ${reminder.medicineName}\n` +
+              `   • Dosage    : ${reminder.dosage}\n` +
+              `   • Time      : ${reminder.time} every day\n` +
+              `   • Frequency : ${reminder.frequency}\n` +
+              `   • Start Date: ${new Date(reminder.startDate).toDateString()}\n` +
+              (reminder.endDate ? `   • End Date  : ${new Date(reminder.endDate).toDateString()}\n` : `   • End Date  : No end date (ongoing)\n`) +
+              `\n📌 What to expect:\n` +
+              `   You will receive an SMS reminder at ${reminder.time}\n` +
+              `   every day as a prompt to take your medicine.\n\n` +
+              `⚠️ Important Reminders:\n` +
+              `   • Always take the exact prescribed dose\n` +
+              `   • Do not skip doses without doctor advice\n` +
+              `   • Store medicine as instructed on the label\n` +
+              `   • Contact your doctor for any side effects\n\n` +
+              `Stay consistent & healthy! 💪\n` +
+              `━━━━━━━━━━━━━━━━━━━━━━\n` +
+              `— MedCare Health System`
+            );
+            console.log(`[SMS] Reminder confirmation sent to ${contact}`);
+          }
+        } catch (smsErr) {
+          console.error("[SMS] Failed to send reminder confirmation:", smsErr);
+        }
+      });
+
+      res.status(201).json(reminder);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ error: err.errors[0].message });
+      } else {
+        console.error(err);
+        res.status(500).json({ error: "Failed to create reminder" });
+      }
+    }
+  });
+
+  app.patch("/api/medicine-reminders/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      
+      // Ensure user owns this reminder
+      const existing = await db.select()
+        .from(medicineReminders)
+        .where(eq(medicineReminders.id, id))
+        .limit(1);
+      
+      if (!existing.length || existing[0].userId !== req.user!.id) {
+        return res.sendStatus(404);
+      }
+
+      const [updated] = await db.update(medicineReminders)
+        .set(updates)
+        .where(eq(medicineReminders.id, id))
+        .returning();
+      
+      res.json(updated);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update reminder" });
+    }
+  });
+
+  app.delete("/api/medicine-reminders/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const id = parseInt(req.params.id);
+      const existing = await db.select()
+        .from(medicineReminders)
+        .where(eq(medicineReminders.id, id))
+        .limit(1);
+      if (!existing.length || existing[0].userId !== req.user!.id) return res.sendStatus(404);
+      await db.delete(medicineReminders).where(eq(medicineReminders.id, id));
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete reminder" });
+    }
+  });
+
+  // === FCM Device Token ===
+  app.post("/api/notifications/token", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { token } = req.body;
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "FCM token is required" });
+      }
+      await saveDeviceToken(req.user!.id, token);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("[FCM] Token save error:", err);
+      res.status(500).json({ error: "Failed to save token" });
+    }
+  });
+
+  // === FCM Test Notification ===
+  app.post("/api/notifications/test", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      await Promise.allSettled([
+        sendReminder(req.user!.id, "Metformin (Test)", "500mg"),
+        sendSmsReminder(req.user!.id, "Metformin (Test)", "500mg"),
+      ]);
+      res.json({
+        success: true,
+        message: "Test notification sent via FCM push + SMS!",
+        smsEnabled: isSmsReady(),
+      });
+    } catch (err) {
+      console.error("[FCM] Test notification error:", err);
+      res.status(500).json({ error: "Failed to send test notification" });
+    }
   });
 
   // === Profile ===

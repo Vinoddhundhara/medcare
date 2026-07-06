@@ -1,7 +1,7 @@
 import { 
-  users, patients, doctors, hospitals, appointments, prescriptions,
-  type User, type InsertUser, type Patient, type Doctor, type Hospital, type Appointment, type Prescription,
-  type InsertPatient, type InsertDoctor, type InsertHospital, type InsertAppointment, type InsertPrescription,
+  users, patients, doctors, hospitals, appointments, prescriptions, medicineReminders,
+  type User, type InsertUser, type Patient, type Doctor, type Hospital, type Appointment, type Prescription, type MedicineReminder,
+  type InsertPatient, type InsertDoctor, type InsertHospital, type InsertAppointment, type InsertPrescription, type InsertMedicineReminder,
   type DoctorWithUser, type PatientWithUser, type AppointmentWithDetails,
   type UpdateAppointmentStatus
 } from "@shared/schema";
@@ -47,6 +47,12 @@ export interface IStorage {
   // Prescription
   createPrescription(prescription: InsertPrescription): Promise<Prescription>;
   getPrescriptionsByAppointment(appointmentId: number): Promise<Prescription[]>;
+
+  // Medicine Reminder
+  createMedicineReminder(reminder: InsertMedicineReminder): Promise<MedicineReminder>;
+  getMedicineRemindersByUser(userId: number): Promise<MedicineReminder[]>;
+  updateMedicineReminder(id: number, updates: Partial<InsertMedicineReminder>): Promise<MedicineReminder>;
+  deleteMedicineReminder(id: number): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -257,6 +263,28 @@ export class DatabaseStorage implements IStorage {
 
   async getPrescriptionsByAppointment(appointmentId: number): Promise<Prescription[]> {
     return await db.select().from(prescriptions).where(eq(prescriptions.appointmentId, appointmentId));
+  }
+
+  async createMedicineReminder(reminder: InsertMedicineReminder): Promise<MedicineReminder> {
+    const [newReminder] = await db.insert(medicineReminders).values(reminder).returning();
+    return newReminder;
+  }
+
+  async getMedicineRemindersByUser(userId: number): Promise<MedicineReminder[]> {
+    return await db.select().from(medicineReminders).where(eq(medicineReminders.userId, userId));
+  }
+
+  async updateMedicineReminder(id: number, updates: Partial<InsertMedicineReminder>): Promise<MedicineReminder> {
+    const [updated] = await db
+      .update(medicineReminders)
+      .set(updates)
+      .where(eq(medicineReminders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMedicineReminder(id: number): Promise<void> {
+    await db.delete(medicineReminders).where(eq(medicineReminders.id, id));
   }
 }
 

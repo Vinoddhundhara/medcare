@@ -62,6 +62,26 @@ export const prescriptions = pgTable("prescriptions", {
   date: timestamp("date").defaultNow(),
 });
 
+export const medicineReminders = pgTable("medicine_reminders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  medicineName: text("medicine_name").notNull(),
+  dosage: text("dosage").notNull(),
+  frequency: text("frequency").notNull(),
+  time: text("time").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const notificationTokens = pgTable("notification_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  token: text("token").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // === RELATIONS ===
 
 export const usersRelations = relations(users, ({ one }) => ({
@@ -121,6 +141,20 @@ export const prescriptionsRelations = relations(prescriptions, ({ one }) => ({
   }),
 }));
 
+export const medicineRemindersRelations = relations(medicineReminders, ({ one }) => ({
+  user: one(users, {
+    fields: [medicineReminders.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationTokensRelations = relations(notificationTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationTokens.userId],
+    references: [users.id],
+  }),
+}));
+
 // === BASE SCHEMAS ===
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -133,6 +167,12 @@ export const insertAppointmentSchema = createInsertSchema(appointments)
     date: z.coerce.date(),
   }); // Status defaults to pending
 export const insertPrescriptionSchema = createInsertSchema(prescriptions).omit({ id: true, date: true });
+export const insertMedicineReminderSchema = createInsertSchema(medicineReminders)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date().optional(),
+  });
 
 // === EXPLICIT API TYPES ===
 
@@ -149,6 +189,10 @@ export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = typeof appointments.$inferInsert;
 export type Prescription = typeof prescriptions.$inferSelect;
 export type InsertPrescription = typeof prescriptions.$inferInsert;
+export type MedicineReminder = typeof medicineReminders.$inferSelect;
+export type InsertMedicineReminder = typeof medicineReminders.$inferInsert;
+export type NotificationToken = typeof notificationTokens.$inferSelect;
+export type InsertNotificationToken = typeof notificationTokens.$inferInsert;
 
 // Registration Request (Complex)
 export const registerUserSchema = insertUserSchema.extend({
