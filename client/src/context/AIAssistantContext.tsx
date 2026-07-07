@@ -1,11 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useRef } from "react";
-
-interface Message {
-  id: string;
-  text: string;
-  sender: "user" | "ai";
-  time: Date;
-}
+import { createContext, useContext, useState, ReactNode } from "react";
 
 interface AIAssistantState {
   // Symptom Checker
@@ -16,14 +9,6 @@ interface AIAssistantState {
   symptomLoading: boolean;
   setSymptomLoading: (v: boolean) => void;
 
-  // Chatbot
-  messages: Message[];
-  setMessages: (v: Message[]) => void;
-  chatInput: string;
-  setChatInput: (v: string) => void;
-  chatLoading: boolean;
-  setChatLoading: (v: boolean) => void;
-
   // Medicine Recommendation
   condition: string;
   setCondition: (v: string) => void;
@@ -31,32 +16,45 @@ interface AIAssistantState {
   setMedicineResult: (v: string) => void;
   medicineLoading: boolean;
   setMedicineLoading: (v: boolean) => void;
+
+  // Diet Plan
+  dietCondition: string;
+  setDietCondition: (v: string) => void;
+  dietAge: string;
+  setDietAge: (v: string) => void;
+  dietWeight: string;
+  setDietWeight: (v: string) => void;
+  dietActivity: string;
+  setDietActivity: (v: string) => void;
+  dietFoodPref: string;
+  setDietFoodPref: (v: string) => void;
+  dietPlan: string;
+  setDietPlan: (v: string) => void;
+  dietLoading: boolean;
+  setDietLoading: (v: boolean) => void;
 }
 
 const AIAssistantContext = createContext<AIAssistantState | undefined>(undefined);
 
 export function AIAssistantProvider({ children }: { children: ReactNode }) {
-  // Symptom Checker State
+  // Symptom Checker
   const [symptoms, setSymptoms] = useState("");
   const [symptomAnalysis, setSymptomAnalysis] = useState("");
   const [symptomLoading, setSymptomLoading] = useState(false);
 
-  // Chatbot State
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      text: "Hello! I'm your AI medical assistant. Ask me anything — health questions, medication info, diet tips, and more. How can I help you today?",
-      sender: "ai",
-      time: new Date(),
-    },
-  ]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-
-  // Medicine Recommendation State
+  // Medicine Recommendation
   const [condition, setCondition] = useState("");
   const [medicineResult, setMedicineResult] = useState("");
   const [medicineLoading, setMedicineLoading] = useState(false);
+
+  // Diet Plan
+  const [dietCondition, setDietCondition] = useState("");
+  const [dietAge, setDietAge] = useState("");
+  const [dietWeight, setDietWeight] = useState("");
+  const [dietActivity, setDietActivity] = useState("");
+  const [dietFoodPref, setDietFoodPref] = useState("");
+  const [dietPlan, setDietPlan] = useState("");
+  const [dietLoading, setDietLoading] = useState(false);
 
   return (
     <AIAssistantContext.Provider
@@ -64,12 +62,16 @@ export function AIAssistantProvider({ children }: { children: ReactNode }) {
         symptoms, setSymptoms,
         symptomAnalysis, setSymptomAnalysis,
         symptomLoading, setSymptomLoading,
-        messages, setMessages,
-        chatInput, setChatInput,
-        chatLoading, setChatLoading,
         condition, setCondition,
         medicineResult, setMedicineResult,
         medicineLoading, setMedicineLoading,
+        dietCondition, setDietCondition,
+        dietAge, setDietAge,
+        dietWeight, setDietWeight,
+        dietActivity, setDietActivity,
+        dietFoodPref, setDietFoodPref,
+        dietPlan, setDietPlan,
+        dietLoading, setDietLoading,
       }}
     >
       {children}

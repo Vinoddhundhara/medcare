@@ -103,3 +103,108 @@ Respond in this EXACT format:
 
   return await askAI(prompt);
 }
+
+export async function generateDietPlan(input: {
+  condition: string;
+  age: string;
+  weight: string;
+  activityLevel: string;
+  foodPreference: string;
+}) {
+  const prompt = `You are a certified nutritionist and dietitian AI. A patient needs a personalized 7-day diet plan.
+
+Patient Details:
+- Medical Condition: ${input.condition}
+- Age: ${input.age}
+- Weight: ${input.weight}
+- Activity Level: ${input.activityLevel}
+- Food Preference: ${input.foodPreference}
+
+Respond in this EXACT format:
+
+🥗 Personalized 7-Day Diet Plan
+Condition: ${input.condition}
+
+📋 Nutritional Goals
+• Daily Calories: [recommended range]
+• Protein: [grams/day]
+• Carbohydrates: [grams/day]
+• Fats: [grams/day]
+• Water Intake: [liters/day]
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+📅 Day 1
+🌅 Breakfast: [specific meal with portion size]
+🌿 Mid-Morning Snack: [specific snack]
+☀️ Lunch: [specific meal with portion size]
+🍎 Evening Snack: [specific snack]
+🌙 Dinner: [specific meal with portion size]
+
+📅 Day 2
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+📅 Day 3
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+📅 Day 4
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+📅 Day 5
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+📅 Day 6
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+📅 Day 7
+🌅 Breakfast: [specific meal]
+🌿 Mid-Morning Snack: [snack]
+☀️ Lunch: [specific meal]
+🍎 Evening Snack: [snack]
+🌙 Dinner: [specific meal]
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Foods to Include
+• [Food 1 and why it helps]
+• [Food 2 and why it helps]
+• [Food 3 and why it helps]
+• [Food 4 and why it helps]
+• [Food 5 and why it helps]
+
+❌ Foods to Avoid
+• [Food 1 and why to avoid]
+• [Food 2 and why to avoid]
+• [Food 3 and why to avoid]
+• [Food 4 and why to avoid]
+
+💡 Lifestyle Tips
+• [Tip 1 specific to condition]
+• [Tip 2 specific to condition]
+• [Tip 3 specific to condition]
+
+⚠️ Disclaimer
+This diet plan is AI-generated for educational purposes only. Please consult a registered dietitian or your doctor before making dietary changes.`;
+
+  return await askAI(prompt);
+}

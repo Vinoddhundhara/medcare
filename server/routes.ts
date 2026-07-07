@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { askAI, analyzeSymptoms, answerMedicalQuestion, recommendMedicines } from "./ai";
+import { askAI, analyzeSymptoms, answerMedicalQuestion, recommendMedicines, generateDietPlan } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
@@ -317,6 +317,29 @@ export async function registerRoutes(
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Medicine recommendation failed" });
+    }
+  });
+
+  app.post("/api/ai/diet-plan", async (req, res) => {
+    try {
+      const { condition, age, weight, activityLevel, foodPreference } = req.body;
+      if (!condition || typeof condition !== "string") {
+        return res.status(400).json({ error: "Condition is required" });
+      }
+      const plan = await generateDietPlan({
+        condition:      condition,
+        age:            age || "Not specified",
+        weight:         weight || "Not specified",
+        activityLevel:  activityLevel || "Moderate",
+        foodPreference: foodPreference || "No preference",
+      });
+      if (!plan) {
+        return res.status(500).json({ error: "AI returned empty plan" });
+      }
+      res.json({ plan });
+    } catch (err: any) {
+      console.error("[Diet] Route error:", err?.message ?? err);
+      res.status(500).json({ error: err?.message || "Diet plan generation failed" });
     }
   });
 

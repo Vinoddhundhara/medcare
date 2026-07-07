@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
-  Brain, Stethoscope, MessageCircle, Pill, FlaskConical,
-  Send, Bot, User, AlertTriangle, CheckCircle, Clock,
-  Plus, Bell, Calendar, Trash2, Edit, Loader2,
+  Brain, Stethoscope, Pill, FlaskConical,
+  AlertTriangle, CheckCircle, Clock,
+  Plus, Bell, Calendar, Trash2, Edit, Loader2, Salad,
+  Apple, Utensils,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -150,117 +151,6 @@ function SymptomCheckerTab() {
         </Card>
       )}
     </div>
-  );
-}
-
-// ─── Tab 2: Medical Chatbot ───────────────────────────────────────────────────
-
-function MedicalChatbotTab() {
-  const { messages, setMessages, chatInput, setChatInput, chatLoading, setChatLoading } = useAIAssistant();
-  const { toast } = useToast();
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, chatLoading]);
-
-  const send = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = { id: Date.now().toString(), text: chatInput.trim(), sender: "user" as const, time: new Date() };
-    const updatedWithUser = [...messages, userMsg];
-    setMessages(updatedWithUser);
-    setChatInput("");
-    setChatLoading(true);
-    try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg.text }),
-      });
-      const data = await res.json();
-      const aiMsg = { id: (Date.now() + 1).toString(), text: data.reply, sender: "ai" as const, time: new Date() };
-      setMessages([...updatedWithUser, aiMsg]);
-      toast({ title: "💬 AI replied to your question" });
-    } catch {
-      setMessages([...updatedWithUser, {
-        id: (Date.now() + 1).toString(),
-        text: "Sorry, I'm having trouble right now. Please try again.",
-        sender: "ai" as const,
-        time: new Date(),
-      }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  return (
-    <Card className="border-border/60 flex flex-col" style={{ height: "520px" }}>
-      <CardHeader className="pb-3 border-b flex-shrink-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bot className="w-5 h-5 text-primary" />
-          AI Medical Chatbot
-        </CardTitle>
-        <CardDescription>Ask any health question. Your conversation is saved while you're on this page.</CardDescription>
-      </CardHeader>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(msg => (
-          <div key={msg.id} className={cn("flex gap-3", msg.sender === "user" ? "justify-end" : "justify-start")}>
-            {msg.sender === "ai" && (
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-primary" />
-              </div>
-            )}
-            <div className={cn(
-              "max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-              msg.sender === "user"
-                ? "bg-primary text-primary-foreground rounded-br-sm"
-                : "bg-muted text-foreground rounded-bl-sm"
-            )}>
-              <p className="whitespace-pre-wrap">{msg.text}</p>
-              <p className={cn("text-[10px] mt-1 opacity-60", msg.sender === "user" ? "text-right" : "")}>
-                {msg.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </p>
-            </div>
-            {msg.sender === "user" && (
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {chatLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-primary" />
-            </div>
-            <div className="bg-muted rounded-2xl rounded-bl-sm">
-              <LoadingDots />
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      <div className="p-4 border-t flex-shrink-0">
-        <div className="flex gap-2">
-          <Input
-            placeholder="e.g. Can diabetics eat mangoes?"
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            disabled={chatLoading}
-          />
-          <Button onClick={send} disabled={!chatInput.trim() || chatLoading} size="icon">
-            {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-1.5">
-          General information only — not a substitute for professional medical advice.
-        </p>
-      </div>
-    </Card>
   );
 }
 
@@ -521,7 +411,6 @@ function MedicineRemindersTab() {
 }
 
 // ─── Tab 4: Medicine Recommendation ──────────────────────────────────────────
-
 function MedicineRecommendationTab() {
   const { condition, setCondition, medicineResult, setMedicineResult, medicineLoading, setMedicineLoading } = useAIAssistant();
   const { toast } = useToast();
@@ -630,18 +519,207 @@ function MedicineRecommendationTab() {
   );
 }
 
+// ─── Tab 5: Diet & Nutrition Plan ────────────────────────────────────────────
+
+function DietPlanTab() {
+  const {
+    dietCondition, setDietCondition,
+    dietAge, setDietAge,
+    dietWeight, setDietWeight,
+    dietActivity, setDietActivity,
+    dietFoodPref, setDietFoodPref,
+    dietPlan, setDietPlan,
+    dietLoading, setDietLoading,
+  } = useAIAssistant();
+  const { toast } = useToast();
+
+  const generate = async () => {
+    if (!dietCondition.trim() || dietLoading) return;
+    setDietLoading(true);
+    setDietPlan("");
+    try {
+      const res = await fetch("/api/ai/diet-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condition:      dietCondition,
+          age:            dietAge,
+          weight:         dietWeight,
+          activityLevel:  dietActivity,
+          foodPreference: dietFoodPref,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+      if (!data.plan) throw new Error("No plan returned from server");
+      setDietPlan(data.plan);
+      toast({ title: "🥗 Diet plan ready!", description: "Your personalised 7-day plan is below." });
+    } catch (e: any) {
+      console.error("[Diet] Error:", e);
+      toast({ title: "Generation failed", description: e.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setDietLoading(false);
+    }
+  };
+
+  const quickConditions = [
+    "Type 2 Diabetes", "High Blood Pressure", "Weight Loss",
+    "Heart Disease", "PCOS", "Thyroid", "High Cholesterol", "General Health",
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-border/60">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Utensils className="w-5 h-5 text-primary" />
+            AI Diet & Nutrition Plan
+          </CardTitle>
+          <CardDescription>
+            Fill in your details and get a personalised 7-day meal plan tailored to your health condition.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+
+          {/* Quick picks */}
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">
+              Select your condition (or type below)
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {quickConditions.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setDietCondition(c)}
+                  className={cn(
+                    "px-3 py-1 text-xs rounded-full border transition-colors",
+                    dietCondition === c
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border hover:bg-muted hover:border-primary/40"
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Health Condition *</Label>
+              <Input
+                placeholder="e.g. Type 2 Diabetes, PCOS…"
+                value={dietCondition}
+                onChange={e => setDietCondition(e.target.value)}
+                disabled={dietLoading}
+              />
+            </div>
+            <div>
+              <Label>Age</Label>
+              <Input
+                placeholder="e.g. 35"
+                value={dietAge}
+                onChange={e => setDietAge(e.target.value)}
+                disabled={dietLoading}
+              />
+            </div>
+            <div>
+              <Label>Weight</Label>
+              <Input
+                placeholder="e.g. 75 kg"
+                value={dietWeight}
+                onChange={e => setDietWeight(e.target.value)}
+                disabled={dietLoading}
+              />
+            </div>
+            <div>
+              <Label>Activity Level</Label>
+              <Select value={dietActivity} onValueChange={setDietActivity} disabled={dietLoading}>
+                <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sedentary (little/no exercise)">Sedentary (little/no exercise)</SelectItem>
+                  <SelectItem value="Light (1-3 days/week)">Light (1–3 days/week)</SelectItem>
+                  <SelectItem value="Moderate (3-5 days/week)">Moderate (3–5 days/week)</SelectItem>
+                  <SelectItem value="Active (6-7 days/week)">Active (6–7 days/week)</SelectItem>
+                  <SelectItem value="Very Active (athlete)">Very Active (athlete)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Food Preference</Label>
+              <Select value={dietFoodPref} onValueChange={setDietFoodPref} disabled={dietLoading}>
+                <SelectTrigger><SelectValue placeholder="Select food preference" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Vegetarian">Vegetarian</SelectItem>
+                  <SelectItem value="Vegan">Vegan</SelectItem>
+                  <SelectItem value="Non-Vegetarian">Non-Vegetarian</SelectItem>
+                  <SelectItem value="Eggetarian">Eggetarian</SelectItem>
+                  <SelectItem value="No preference">No preference</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              onClick={generate}
+              disabled={dietLoading || !dietCondition.trim()}
+              className="gap-2"
+            >
+              {dietLoading
+                ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Plan…</>
+                : <><Salad className="w-4 h-4" />Generate 7-Day Diet Plan</>
+              }
+            </Button>
+          </div>
+
+          {dietLoading && (
+            <p className="text-xs text-muted-foreground text-center">
+              ⏳ Generating your personalised plan — you can navigate away and come back.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {dietPlan && (
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Apple className="w-5 h-5 text-green-500" />
+              Your 7-Day Diet Plan — {dietCondition}
+            </CardTitle>
+            <CardDescription>
+              AI-generated personalised nutrition plan. Review with your doctor before starting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AIResultBox content={dietPlan} />
+            <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-xs text-green-800 flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-green-600" />
+              <span>
+                <strong>Tip:</strong> For best results, follow this plan consistently for at least 2 weeks.
+                Drink plenty of water and consult your doctor before making major dietary changes.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const tabs = [
-  { id: "symptom",   label: "Symptom Checker",        icon: Stethoscope,   shortLabel: "Symptoms" },
-  { id: "chat",      label: "Medical Chatbot",         icon: MessageCircle, shortLabel: "Chat"     },
-  { id: "reminder",  label: "Medicine Reminders",      icon: Bell,          shortLabel: "Reminders"},
-  { id: "recommend", label: "Medicine Recommendation", icon: FlaskConical,  shortLabel: "Medicines"},
+  { id: "symptom",   label: "Symptom Checker",        icon: Stethoscope,   shortLabel: "Symptoms"  },
+  { id: "reminder",  label: "Medicine Reminders",      icon: Bell,          shortLabel: "Reminders" },
+  { id: "recommend", label: "Medicine Recommendation", icon: FlaskConical,  shortLabel: "Medicines" },
+  { id: "diet",      label: "Diet & Nutrition",        icon: Salad,         shortLabel: "Diet"      },
 ];
 
 function AIAssistantInner() {
-  const { symptomLoading, chatLoading, medicineLoading } = useAIAssistant();
-  const anyLoading = symptomLoading || chatLoading || medicineLoading;
+  const { symptomLoading, medicineLoading, dietLoading } = useAIAssistant();
+  const anyLoading = symptomLoading || medicineLoading || dietLoading;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -661,7 +739,7 @@ function AIAssistantInner() {
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            Four AI-powered tools — all in one place. Results are saved when you switch tabs.
+            Five AI-powered tools — all in one place. Results are saved when you switch tabs.
           </p>
         </div>
       </div>
@@ -681,9 +759,9 @@ function AIAssistantInner() {
 
         <div className="mt-6">
           <TabsContent value="symptom"   className="mt-0"><SymptomCheckerTab /></TabsContent>
-          <TabsContent value="chat"      className="mt-0"><MedicalChatbotTab /></TabsContent>
           <TabsContent value="reminder"  className="mt-0"><MedicineRemindersTab /></TabsContent>
           <TabsContent value="recommend" className="mt-0"><MedicineRecommendationTab /></TabsContent>
+          <TabsContent value="diet"      className="mt-0"><DietPlanTab /></TabsContent>
         </div>
       </Tabs>
     </div>
