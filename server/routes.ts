@@ -2,18 +2,18 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { askAI, analyzeSymptoms, answerMedicalQuestion, recommendMedicines, generateDietPlan } from "./ai";
+import { askAI, analyzeSymptoms, analyzeSymptomsFull, answerMedicalQuestion, recommendMedicines, generateDietPlan } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
   insertAppointmentSchema,
   insertPrescriptionSchema,
   insertMedicineReminderSchema,
-  users, patients, doctors, medicineReminders, notificationTokens,
+  users, patients, doctors, medicineReminders, notificationTokens, hospitals, appointments, prescriptions,
   type InsertPrescription,
   type InsertMedicineReminder,
 } from "@shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq } from "drizzle-orm";
 import { sendAppointmentBookedEmails, sendAppointmentStatusEmail, sendVideoCallLinkEmail } from "./email";
 import { saveDeviceToken, sendReminder } from "./services/notificationService";
@@ -82,6 +82,20 @@ export async function registerRoutes(
         patientId: patient.id
       });
 
+      // ── PRE-CHECK: block duplicate slot before insert ─────────────────────
+      const { rows: conflictRows } = await pool.query(
+        `SELECT id FROM appointments 
+         WHERE doctor_id = $1 AND date = $2 
+         AND status NOT IN ('cancelled','rejected') 
+         LIMIT 1`,
+        [input.doctorId, new Date(input.date)]
+      );
+
+      if (conflictRows.length > 0) {
+        return res.status(409).json({ message: "This time slot is already booked. Please choose a different slot." });
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       const appointment = await storage.createAppointment(input);
 
       // Send emails in background (don't block the response)
@@ -109,12 +123,17 @@ export async function registerRoutes(
       });
 
       res.status(201).json(appointment);
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof z.ZodError) {
-         res.status(400).json({ message: err.errors[0].message });
-      } else {
-        res.status(500).json({ message: "Internal Server Error" });
+        return res.status(400).json({ message: err.errors[0].message });
       }
+      // PostgreSQL unique constraint — slot already booked (Drizzle wraps the original PG error)
+      const pgCode = err?.code || err?.cause?.code || err?.original?.code;
+      if (pgCode === "23505" || err?.message?.includes("appointments_doctor_date_unique")) {
+        return res.status(409).json({ message: "This time slot is already booked. Please choose a different slot." });
+      }
+      console.error("[Appointments] Create error:", err?.message ?? err);
+      res.status(500).json({ message: "Internal Server Error" });
     }
   });
 
@@ -292,6 +311,7 @@ export async function registerRoutes(
     }
   });
 
+  // Legacy: plain symptom analysis (text only)
   app.post("/api/ai/symptoms", async (req, res) => {
     try {
       const { symptoms } = req.body;
@@ -302,6 +322,51 @@ export async function registerRoutes(
       res.json({ analysis });
     } catch (err) {
       console.error(err);
+      res.status(500).json({ error: "Symptom analysis failed" });
+    }
+  });
+
+  // NEW: Full AI → Doctor flow — returns analysis + specialist + matching doctors
+  app.post("/api/ai/analyze-symptoms", async (req, res) => {
+    try {
+      const { symptoms } = req.body;
+      if (!symptoms || typeof symptoms !== "string") {
+        return res.status(400).json({ error: "Symptoms description is required" });
+      }
+
+      // Step 1: AI analysis
+      const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptoms);
+
+      // Step 2: Find matching doctors from DB by specialization
+      const matchedDoctors = await storage.getDoctors({ specialization: recommendedSpecialist });
+
+      // Step 3: Format doctor list with hospital info
+      const doctorList = matchedDoctors.map(d => ({
+        id: d.id,
+        name: d.user.name,
+        specialization: d.specialization,
+        experience: d.experience,
+        consultationFee: d.consultationFee,
+        hospital: d.hospital?.name || "Independent",
+        hospitalId: d.hospitalId,
+        availability: d.availability || [],
+        onlineEnabled: d.onlineEnabled,
+        offlineEnabled: d.offlineEnabled,
+        videoEnabled: d.videoEnabled,
+        onlineFee: d.onlineFee,
+        offlineFee: d.offlineFee,
+        videoFee: d.videoFee,
+      }));
+
+      res.json({
+        analysis,
+        recommendedSpecialist,
+        risk,
+        urgency,
+        doctors: doctorList,
+      });
+    } catch (err: any) {
+      console.error("[AI Symptoms] Error:", err?.message ?? err);
       res.status(500).json({ error: "Symptom analysis failed" });
     }
   });
@@ -466,7 +531,28 @@ export async function registerRoutes(
     }
   });
 
-  // === FCM Device Token ===
+  // === Doctor Booked Slots (public — no auth needed) ===
+  app.get("/api/doctors/:id/booked-slots", async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      if (isNaN(doctorId)) return res.status(400).json({ error: "Invalid doctor id" });
+
+      // Direct DB query — fast, no joins needed
+      const rows = await db
+        .select({ date: appointments.date })
+        .from(appointments)
+        .where(eq(appointments.doctorId, doctorId));
+
+      const bookedSlots = rows
+        .filter(r => r.date)
+        .map(r => new Date(r.date).toISOString());
+
+      res.json({ bookedSlots });
+    } catch (err) {
+      console.error("[Booked Slots] Error:", err);
+      res.status(500).json({ error: "Failed to fetch booked slots" });
+    }
+  });
   app.post("/api/notifications/token", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -551,12 +637,31 @@ export async function registerRoutes(
       } else if (user.role === "doctor") {
         const doctor = await storage.getDoctorByUserId(user.id);
         if (doctor) {
-          const { specialization, experience, consultationFee, availability } = profileFields;
+          const { 
+            specialization, 
+            experience, 
+            consultationFee, 
+            availability,
+            qualification,
+            onlineFee,
+            offlineFee,
+            videoFee,
+            onlineEnabled,
+            offlineEnabled,
+            videoEnabled
+          } = profileFields;
           await db.update(doctors)
             .set({
               ...(specialization && { specialization }),
               ...(experience !== undefined && { experience: parseInt(experience) }),
               ...(consultationFee !== undefined && { consultationFee: parseInt(consultationFee) }),
+              ...(qualification && { qualification }),
+              ...(onlineFee !== undefined && { onlineFee: parseInt(onlineFee) }),
+              ...(offlineFee !== undefined && { offlineFee: parseInt(offlineFee) }),
+              ...(videoFee !== undefined && { videoFee: parseInt(videoFee) }),
+              ...(onlineEnabled !== undefined && { onlineEnabled: onlineEnabled === true || onlineEnabled === 'true' }),
+              ...(offlineEnabled !== undefined && { offlineEnabled: offlineEnabled === true || offlineEnabled === 'true' }),
+              ...(videoEnabled !== undefined && { videoEnabled: videoEnabled === true || videoEnabled === 'true' }),
               ...(availability && { availability }),
             })
             .where(eq(doctors.userId, user.id));
@@ -579,6 +684,50 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/doctors/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (user.role !== "doctor") return res.status(403).json({ error: "Only doctors can update this profile" });
+
+    try {
+      const {
+        specialization,
+        experience,
+        consultationFee,
+        availability,
+        qualification,
+        onlineFee,
+        offlineFee,
+        videoFee,
+        onlineEnabled,
+        offlineEnabled,
+        videoEnabled
+      } = req.body;
+
+      await db.update(doctors)
+        .set({
+          ...(specialization && { specialization }),
+          ...(experience !== undefined && { experience: parseInt(experience) }),
+          ...(consultationFee !== undefined && { consultationFee: parseInt(consultationFee) }),
+          ...(qualification && { qualification }),
+          ...(onlineFee !== undefined && { onlineFee: parseInt(onlineFee) }),
+          ...(offlineFee !== undefined && { offlineFee: parseInt(offlineFee) }),
+          ...(videoFee !== undefined && { videoFee: parseInt(videoFee) }),
+          ...(onlineEnabled !== undefined && { onlineEnabled: onlineEnabled === true || onlineEnabled === 'true' }),
+          ...(offlineEnabled !== undefined && { offlineEnabled: offlineEnabled === true || offlineEnabled === 'true' }),
+          ...(videoEnabled !== undefined && { videoEnabled: videoEnabled === true || videoEnabled === 'true' }),
+          ...(availability && { availability }),
+        })
+        .where(eq(doctors.userId, user.id));
+
+      const doctor = await storage.getDoctorByUserId(user.id);
+      const hospital = doctor?.hospitalId ? await storage.getHospital(doctor.hospitalId) : null;
+      return res.json({ user, profile: doctor ? { ...doctor, hospital } : null });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to update doctor profile" });
+    }
+  });
+
   // Seed Data
   await seedDatabase();
 
@@ -587,29 +736,66 @@ export async function registerRoutes(
 
 async function seedDatabase() {
   const existingHospitals = await storage.getHospitals();
-  if (existingHospitals.length > 0) return;
+  if (existingHospitals.length > 0) {
+    if (existingHospitals.length < 5) {
+      console.log("Database needs re-seeding. Cleaning database...");
+      await db.delete(prescriptions);
+      await db.delete(appointments);
+      await db.delete(medicineReminders);
+      await db.delete(doctors);
+      await db.delete(patients);
+      await db.delete(hospitals);
+      await db.delete(users);
+    } else {
+      return;
+    }
+  }
 
   console.log("Seeding database...");
   const hashedPassword = await hashPassword("password123");
 
-  // Create Hospitals
-  const h1 = await storage.createHospital({
-    name: "City General Hospital",
-    location: "Downtown",
-    contact: "555-0123",
-    specializations: ["Cardiology", "Neurology", "General Surgery"],
+  // ─── Hospitals ──────────────────────────────────────────────────────
+  const hApollo = await storage.createHospital({
+    name: "Apollo Hospital",
+    location: "Jubilee Hills, Hyderabad",
+    contact: "040-23607777",
+    specializations: ["Cardiology", "Neurology", "Orthopedics", "General Medicine", "Pulmonology"],
     imageUrl: "https://images.unsplash.com/photo-1587351021759-3e566b9af9ef?auto=format&fit=crop&q=80&w=2000"
   });
 
-  const h2 = await storage.createHospital({
-    name: "Sunrise Pediatrics",
-    location: "Westside",
-    contact: "555-0199",
-    specializations: ["Pediatrics", "Vaccination"],
+  const hFortis = await storage.createHospital({
+    name: "Fortis Hospital",
+    location: "Bannerghatta Road, Bangalore",
+    contact: "080-66214444",
+    specializations: ["Cardiology", "Gastroenterology", "Dermatology", "Pediatrics"],
     imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=2000"
   });
 
-  // Create Admin
+  const hMax = await storage.createHospital({
+    name: "Max Super Speciality Hospital",
+    location: "Saket, New Delhi",
+    contact: "011-26515050",
+    specializations: ["Neurology", "Orthopedics", "General Medicine", "Pulmonology"],
+    imageUrl: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&q=80&w=2000"
+  });
+
+  const hAIIMS = await storage.createHospital({
+    name: "AIIMS Hospital",
+    location: "Ansari Nagar, New Delhi",
+    contact: "011-26588500",
+    specializations: ["Cardiology", "Neurology", "General Medicine", "Dermatology", "Pediatrics"],
+    imageUrl: "https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&q=80&w=2000"
+  });
+
+  const hMedanta = await storage.createHospital({
+    name: "Medanta Hospital",
+    location: "Sector 38, Gurugram",
+    contact: "0124-4141414",
+    specializations: ["Cardiology", "Gastroenterology", "Orthopedics", "Pulmonology"],
+    imageUrl: "https://images.unsplash.com/photo-1551190822-a9ce113ac100?auto=format&fit=crop&q=80&w=2000"
+  });
+
+  // ─── Admin ──────────────────────────────────────────────────────────
   await storage.createUser({
     username: "admin",
     password: hashedPassword,
@@ -618,40 +804,68 @@ async function seedDatabase() {
     email: "admin@health.com"
   });
 
-  // Create Doctors
-  const d1User = await storage.createUser({
-    username: "doctor1",
-    password: hashedPassword,
-    role: "doctor",
-    name: "Dr. Sarah Smith",
-    email: "sarah@citygeneral.com"
-  });
-  await storage.createDoctor({
-    userId: d1User.id,
-    specialization: "Cardiology",
-    hospitalId: h1.id,
-    experience: 10,
-    consultationFee: 150,
-    availability: ["Mon 09:00-17:00", "Wed 09:00-17:00", "Fri 09:00-13:00"]
-  });
+  // ─── Doctors ────────────────────────────────────────────────────────
 
-  const d2User = await storage.createUser({
-    username: "doctor2",
-    password: hashedPassword,
-    role: "doctor",
-    name: "Dr. John Doe",
-    email: "john@sunrise.com"
-  });
-  await storage.createDoctor({
-    userId: d2User.id,
-    specialization: "Pediatrics",
-    hospitalId: h2.id,
-    experience: 5,
-    consultationFee: 100,
-    availability: ["Tue 09:00-17:00", "Thu 09:00-17:00"]
-  });
+  // Cardiologists (3)
+  const d1User = await storage.createUser({ username: "doctor1", password: hashedPassword, role: "doctor", name: "Dr. Rahul Sharma", email: "rahul.sharma@apollo.com" });
+  await storage.createDoctor({ userId: d1User.id, specialization: "Cardiology", hospitalId: hApollo.id, experience: 12, consultationFee: 700, availability: ["Mon 09:00-17:00", "Wed 09:00-17:00", "Fri 09:00-13:00"] });
 
-  // Create Patients
+  const d2User = await storage.createUser({ username: "doctor2", password: hashedPassword, role: "doctor", name: "Dr. Amit Verma", email: "amit.verma@fortis.com" });
+  await storage.createDoctor({ userId: d2User.id, specialization: "Cardiology", hospitalId: hFortis.id, experience: 8, consultationFee: 500, availability: ["Tue 10:00-18:00", "Thu 10:00-18:00", "Sat 09:00-14:00"] });
+
+  const d3User = await storage.createUser({ username: "doctor3", password: hashedPassword, role: "doctor", name: "Dr. Priya Kapoor", email: "priya.kapoor@medanta.com" });
+  await storage.createDoctor({ userId: d3User.id, specialization: "Cardiology", hospitalId: hMedanta.id, experience: 15, consultationFee: 900, availability: ["Mon 10:00-16:00", "Wed 10:00-16:00", "Fri 10:00-16:00"] });
+
+  // Neurologists (2)
+  const d4User = await storage.createUser({ username: "doctor4", password: hashedPassword, role: "doctor", name: "Dr. Suresh Menon", email: "suresh.menon@max.com" });
+  await storage.createDoctor({ userId: d4User.id, specialization: "Neurology", hospitalId: hMax.id, experience: 14, consultationFee: 800, availability: ["Mon 09:00-15:00", "Wed 09:00-15:00", "Fri 09:00-15:00"] });
+
+  const d5User = await storage.createUser({ username: "doctor5", password: hashedPassword, role: "doctor", name: "Dr. Anjali Desai", email: "anjali.desai@aiims.com" });
+  await storage.createDoctor({ userId: d5User.id, specialization: "Neurology", hospitalId: hAIIMS.id, experience: 18, consultationFee: 600, availability: ["Tue 09:00-17:00", "Thu 09:00-17:00"] });
+
+  // Dermatologists (2)
+  const d6User = await storage.createUser({ username: "doctor6", password: hashedPassword, role: "doctor", name: "Dr. Neha Gupta", email: "neha.gupta@fortis.com" });
+  await storage.createDoctor({ userId: d6User.id, specialization: "Dermatology", hospitalId: hFortis.id, experience: 7, consultationFee: 500, availability: ["Mon 11:00-19:00", "Wed 11:00-19:00", "Fri 11:00-17:00"] });
+
+  const d7User = await storage.createUser({ username: "doctor7", password: hashedPassword, role: "doctor", name: "Dr. Vikram Singh", email: "vikram.singh@aiims.com" });
+  await storage.createDoctor({ userId: d7User.id, specialization: "Dermatology", hospitalId: hAIIMS.id, experience: 10, consultationFee: 450, availability: ["Tue 10:00-18:00", "Thu 10:00-18:00", "Sat 10:00-14:00"] });
+
+  // Orthopedists (2)
+  const d8User = await storage.createUser({ username: "doctor8", password: hashedPassword, role: "doctor", name: "Dr. Rajesh Patel", email: "rajesh.patel@apollo.com" });
+  await storage.createDoctor({ userId: d8User.id, specialization: "Orthopedics", hospitalId: hApollo.id, experience: 16, consultationFee: 750, availability: ["Mon 09:00-17:00", "Tue 09:00-17:00", "Thu 09:00-17:00"] });
+
+  const d9User = await storage.createUser({ username: "doctor9", password: hashedPassword, role: "doctor", name: "Dr. Kavita Joshi", email: "kavita.joshi@max.com" });
+  await storage.createDoctor({ userId: d9User.id, specialization: "Orthopedics", hospitalId: hMax.id, experience: 9, consultationFee: 600, availability: ["Wed 10:00-18:00", "Fri 10:00-18:00", "Sat 09:00-13:00"] });
+
+  // General Physicians (2)
+  const d10User = await storage.createUser({ username: "doctor10", password: hashedPassword, role: "doctor", name: "Dr. Arjun Reddy", email: "arjun.reddy@apollo.com" });
+  await storage.createDoctor({ userId: d10User.id, specialization: "General Medicine", hospitalId: hApollo.id, experience: 6, consultationFee: 300, availability: ["Mon 09:00-17:00", "Tue 09:00-17:00", "Wed 09:00-17:00", "Thu 09:00-17:00", "Fri 09:00-17:00"] });
+
+  const d11User = await storage.createUser({ username: "doctor11", password: hashedPassword, role: "doctor", name: "Dr. Meera Iyer", email: "meera.iyer@aiims.com" });
+  await storage.createDoctor({ userId: d11User.id, specialization: "General Medicine", hospitalId: hAIIMS.id, experience: 11, consultationFee: 400, availability: ["Mon 10:00-16:00", "Wed 10:00-16:00", "Fri 10:00-16:00"] });
+
+  // Pediatricians (2)
+  const d12User = await storage.createUser({ username: "doctor12", password: hashedPassword, role: "doctor", name: "Dr. Sneha Nair", email: "sneha.nair@fortis.com" });
+  await storage.createDoctor({ userId: d12User.id, specialization: "Pediatrics", hospitalId: hFortis.id, experience: 5, consultationFee: 400, availability: ["Tue 09:00-17:00", "Thu 09:00-17:00", "Sat 09:00-13:00"] });
+
+  const d13User = await storage.createUser({ username: "doctor13", password: hashedPassword, role: "doctor", name: "Dr. Arun Kumar", email: "arun.kumar@aiims.com" });
+  await storage.createDoctor({ userId: d13User.id, specialization: "Pediatrics", hospitalId: hAIIMS.id, experience: 13, consultationFee: 350, availability: ["Mon 09:00-15:00", "Wed 09:00-15:00", "Fri 09:00-15:00"] });
+
+  // Pulmonologists (2)
+  const d14User = await storage.createUser({ username: "doctor14", password: hashedPassword, role: "doctor", name: "Dr. Sanjay Mishra", email: "sanjay.mishra@medanta.com" });
+  await storage.createDoctor({ userId: d14User.id, specialization: "Pulmonology", hospitalId: hMedanta.id, experience: 11, consultationFee: 650, availability: ["Mon 10:00-18:00", "Wed 10:00-18:00", "Fri 10:00-16:00"] });
+
+  const d15User = await storage.createUser({ username: "doctor15", password: hashedPassword, role: "doctor", name: "Dr. Divya Sharma", email: "divya.sharma@apollo.com" });
+  await storage.createDoctor({ userId: d15User.id, specialization: "Pulmonology", hospitalId: hApollo.id, experience: 8, consultationFee: 550, availability: ["Tue 09:00-17:00", "Thu 09:00-17:00"] });
+
+  // Gastroenterologists (2)
+  const d16User = await storage.createUser({ username: "doctor16", password: hashedPassword, role: "doctor", name: "Dr. Manish Agarwal", email: "manish.agarwal@fortis.com" });
+  await storage.createDoctor({ userId: d16User.id, specialization: "Gastroenterology", hospitalId: hFortis.id, experience: 10, consultationFee: 600, availability: ["Mon 09:00-17:00", "Wed 09:00-17:00", "Fri 09:00-13:00"] });
+
+  const d17User = await storage.createUser({ username: "doctor17", password: hashedPassword, role: "doctor", name: "Dr. Pooja Mehta", email: "pooja.mehta@medanta.com" });
+  await storage.createDoctor({ userId: d17User.id, specialization: "Gastroenterology", hospitalId: hMedanta.id, experience: 7, consultationFee: 550, availability: ["Tue 10:00-18:00", "Thu 10:00-18:00", "Sat 10:00-14:00"] });
+
+  // ─── Patients ───────────────────────────────────────────────────────
   const p1User = await storage.createUser({
     username: "patient1",
     password: hashedPassword,
@@ -667,5 +881,5 @@ async function seedDatabase() {
     medicalHistory: "None"
   });
 
-  console.log("Database seeded successfully!");
+  console.log("Database seeded with 5 hospitals, 17 doctors, and 1 patient!");
 }

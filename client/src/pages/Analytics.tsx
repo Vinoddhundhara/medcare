@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from "recharts";
 import { format, subDays, isSameDay } from "date-fns";
-import { TrendingUp, Users, Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
+import { TrendingUp, Users, Calendar, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "#22c55e",
@@ -60,10 +60,14 @@ export default function Analytics() {
   // Last 7 days trend
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const day = subDays(new Date(), 6 - i);
-    const count = appointments?.filter((a: any) =>
+    const dayAppointments = appointments?.filter((a: any) =>
       isSameDay(new Date(a.date), day)
-    ).length || 0;
-    return { day: format(day, "EEE"), date: format(day, "MMM d"), count };
+    ) || [];
+    const count = dayAppointments.length;
+    const earnings = dayAppointments
+      .filter((a: any) => ["completed", "confirmed"].includes(a.status))
+      .reduce((sum: number, a: any) => sum + (a.consultationFee || 0), 0);
+    return { day: format(day, "EEE"), date: format(day, "MMM d"), count, earnings };
   });
 
   // Top doctors (for patient view) or top patients (for doctor view)
@@ -198,6 +202,42 @@ export default function Analytics() {
                   <Tooltip formatter={(v: any) => [v, "Appointments"]} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
                 </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Doctor Earnings Trend */}
+      {user.role === "doctor" && (
+        <Card className="border-border/60 shadow-sm mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-green-500" /> Earnings — Last 7 Days
+            </CardTitle>
+            <CardDescription>Daily confirmed earnings from appointments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-56 w-full rounded-lg" />
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={last7Days} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    formatter={(v: any) => [`₹${v}`, "Earnings"]}
+                    labelFormatter={(l, p) => p[0]?.payload?.date || l}
+                  />
+                  <Area type="monotone" dataKey="earnings" stroke="#22c55e" fillOpacity={1} fill="url(#colorEarnings)" />
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </CardContent>

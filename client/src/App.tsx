@@ -19,6 +19,9 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { MedicineReminderScheduler } from "@/components/MedicineReminderScheduler";
 import { FCMInitializer } from "@/components/FCMInitializer";
+import { SessionExpiryWatcher } from "@/components/SessionExpiryWatcher";
+
+import { AIAssistantProvider } from "@/context/AIAssistantContext";
 
 function Router() {
   return (
@@ -65,12 +68,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <FCMInitializer />
-        <MedicineReminderScheduler />
-        <Router />
-        <Toaster />
-      </TooltipProvider>
+      <AIAssistantProvider>
+        <TooltipProvider>
+          <FCMInitializer />
+          <MedicineReminderScheduler />
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </AIAssistantProvider>
     </QueryClientProvider>
   );
 }

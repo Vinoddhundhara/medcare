@@ -4,13 +4,13 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY!,
 });
 
-export async function askAI(prompt: string) {
+export async function askAI(prompt: string): Promise<string> {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
   });
 
-  return response.text;
+  return response.text || "";
 }
 
 export async function analyzeSymptoms(symptoms: string) {
@@ -48,13 +48,45 @@ Recommended Actions
 • [Emergency sign 5]
 
 Recommended Specialist
-👨‍⚕️ [Primary specialist]
-👨‍⚕️ [Secondary specialist]
+👨‍⚕️ [Primary specialist - write ONLY the specialty name e.g. Cardiologist, General Physician, Pediatrician]
+👨‍⚕️ [Secondary specialist if needed]
+
+Urgency
+[e.g. Consult a Cardiologist within 1 hour.]
 
 Disclaimer
 This is educational information only and is not a medical diagnosis.`;
 
   return await askAI(prompt);
+}
+
+/**
+ * Returns structured JSON: { analysis, recommendedSpecialist, risk, urgency }
+ * Used by the new AI → Doctor flow.
+ */
+export async function analyzeSymptomsFull(symptoms: string): Promise<{
+  analysis: string;
+  recommendedSpecialist: string;
+  risk: string;
+  urgency: string;
+}> {
+  const analysis = await analyzeSymptoms(symptoms);
+
+  // Extract specialist — line after "👨‍⚕️" on first recommended specialist line
+  const specialistMatch = analysis.match(/👨‍⚕️\s*([^\n👨]+)/);
+  const recommendedSpecialist = specialistMatch
+    ? specialistMatch[1].trim().replace(/^(Primary specialist.*?[:–-]\s*)/i, "")
+    : "General Physician";
+
+  // Extract risk level
+  const riskMatch = analysis.match(/⚠️\s*Risk Level\s*\n([A-Z]+)/i);
+  const risk = riskMatch ? riskMatch[1].trim() : "MEDIUM";
+
+  // Extract urgency
+  const urgencyMatch = analysis.match(/Urgency\s*\n([^\n]+)/i);
+  const urgency = urgencyMatch ? urgencyMatch[1].trim() : `Consult a ${recommendedSpecialist} soon.`;
+
+  return { analysis, recommendedSpecialist, risk, urgency };
 }
 
 export async function answerMedicalQuestion(question: string) {

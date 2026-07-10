@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useAppointments } from "@/hooks/use-appointments";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Activity, Clock, Plus, CheckCircle, XCircle, Brain } from "lucide-react";
+import { Calendar, Users, Activity, Clock, Plus, CheckCircle, XCircle, Brain, DollarSign } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,6 +85,24 @@ export default function Dashboard() {
     ["pending", "confirmed"].includes(a.status)
   ) || [];
 
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+
+  const todaysEarnings = isDoctor ? (appointments || []).filter((a: any) => 
+    new Date(a.date) >= todayStart && new Date(a.date) < todayEnd &&
+    ["completed", "confirmed"].includes(a.status)
+  ).reduce((sum: number, a: any) => sum + (a.consultationFee || 0), 0) : 0;
+
+  const pendingEarnings = isDoctor ? (appointments || []).filter((a: any) => 
+    a.status === "pending"
+  ).reduce((sum: number, a: any) => sum + (a.consultationFee || 0), 0) : 0;
+
+  const totalEarnings = isDoctor ? (appointments || []).filter((a: any) => 
+    a.status === "completed"
+  ).reduce((sum: number, a: any) => sum + (a.consultationFee || 0), 0) : 0;
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-end">
@@ -105,34 +123,69 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Total Appointments"
-          value={totalAppointments}
-          description="All time"
-          icon={Calendar}
-          color="text-blue-500"
-        />
-        <StatsCard
-          title="Pending Requests"
-          value={pendingAppointments}
-          description="Awaiting confirmation"
-          icon={Clock}
-          color="text-amber-500"
-        />
-        <StatsCard
-          title="Confirmed"
-          value={confirmedAppointments}
-          description="Upcoming visits"
-          icon={CheckCircle}
-          color="text-green-500"
-        />
-        <StatsCard
-          title={isDoctor ? "Total Patients" : "Doctors Visited"}
-          value={appointments?.length ? new Set(appointments.map((a: any) => isDoctor ? a.patientId : a.doctorId)).size : 0}
-          description="Unique interactions"
-          icon={Users}
-          color="text-purple-500"
-        />
+        {isDoctor ? (
+          <>
+            <StatsCard
+              title="Today's Earnings"
+              value={`₹${todaysEarnings}`}
+              description="From today's appointments"
+              icon={DollarSign}
+              color="text-green-500"
+            />
+            <StatsCard
+              title="Pending Payments"
+              value={`₹${pendingEarnings}`}
+              description="Awaiting confirmation"
+              icon={Clock}
+              color="text-amber-500"
+            />
+            <StatsCard
+              title="Total Earnings"
+              value={`₹${totalEarnings}`}
+              description="All time completed"
+              icon={Activity}
+              color="text-blue-500"
+            />
+            <StatsCard
+              title="Total Patients"
+              value={appointments?.length ? new Set(appointments.map((a: any) => a.patientId)).size : 0}
+              description="Unique interactions"
+              icon={Users}
+              color="text-purple-500"
+            />
+          </>
+        ) : (
+          <>
+            <StatsCard
+              title="Total Appointments"
+              value={totalAppointments}
+              description="All time"
+              icon={Calendar}
+              color="text-blue-500"
+            />
+            <StatsCard
+              title="Pending Requests"
+              value={pendingAppointments}
+              description="Awaiting confirmation"
+              icon={Clock}
+              color="text-amber-500"
+            />
+            <StatsCard
+              title="Confirmed"
+              value={confirmedAppointments}
+              description="Upcoming visits"
+              icon={CheckCircle}
+              color="text-green-500"
+            />
+            <StatsCard
+              title="Doctors Visited"
+              value={appointments?.length ? new Set(appointments.map((a: any) => a.doctorId)).size : 0}
+              description="Unique interactions"
+              icon={Users}
+              color="text-purple-500"
+            />
+          </>
+        )}
       </div>
 
       {/* Main Content Split */}

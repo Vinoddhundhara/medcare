@@ -41,6 +41,13 @@ export const doctors = pgTable("doctors", {
   experience: integer("experience").notNull(), // Years
   availability: jsonb("availability").$type<string[]>(), // e.g. ["Mon 09:00-17:00", "Tue 09:00-12:00"]
   consultationFee: integer("consultation_fee").notNull(),
+  qualification: text("qualification").default("MBBS, MD").notNull(),
+  onlineFee: integer("online_fee").default(500).notNull(),
+  offlineFee: integer("offline_fee").default(700).notNull(),
+  videoFee: integer("video_fee").default(600).notNull(),
+  onlineEnabled: boolean("online_enabled").default(true).notNull(),
+  offlineEnabled: boolean("offline_enabled").default(true).notNull(),
+  videoEnabled: boolean("video_enabled").default(true).notNull(),
 });
 
 export const appointments = pgTable("appointments", {
@@ -52,6 +59,9 @@ export const appointments = pgTable("appointments", {
   reason: text("reason").notNull(),
   videoCallLink: text("video_call_link"),
   createdAt: timestamp("created_at").defaultNow(),
+  consultationFee: integer("consultation_fee").default(700).notNull(),
+  paymentStatus: text("payment_status", { enum: ["pending", "paid", "refunded"] }).default("pending").notNull(),
+  consultationType: text("consultation_type", { enum: ["online", "offline", "video"] }).default("online").notNull(),
 });
 
 export const prescriptions = pgTable("prescriptions", {
@@ -80,6 +90,12 @@ export const notificationTokens = pgTable("notification_tokens", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const session = pgTable("session", {
+  sid: text("sid").primaryKey(),
+  sess: jsonb("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
 });
 
 // === RELATIONS ===

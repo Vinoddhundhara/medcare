@@ -24,11 +24,19 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
+  const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "healthcare_secret_key",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
+    cookie: {
+      maxAge: SESSION_MAX_AGE,   // cookie expires after 24 hours
+      httpOnly: true,            // not accessible via JS
+      secure: app.get("env") === "production", // HTTPS only in production
+    },
+    rolling: false,              // do NOT reset timer on activity — hard 24h limit
   };
 
   if (app.get("env") === "production") {
@@ -99,7 +107,12 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+    // Store login timestamp in session for client-side expiry tracking
+    (req.session as any).loginTime = Date.now();
+    res.status(200).json({
+      ...(req.user as any),
+      sessionExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h from now
+    });
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -111,6 +124,10 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
+    const loginTime = (req.session as any).loginTime || Date.now();
+    res.json({
+      ...(req.user as any),
+      sessionExpiresAt: loginTime + 24 * 60 * 60 * 1000,
+    });
   });
 }

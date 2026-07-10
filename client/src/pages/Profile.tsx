@@ -9,10 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   User, Mail, Phone, Calendar, Stethoscope, Building2,
   Clock, DollarSign, Edit3, Save, X, Activity, FileText,
+  Video, Globe, Users, GraduationCap, Plus, Trash2
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ─── API hooks ────────────────────────────────────────────────────────────────
 
@@ -193,14 +196,27 @@ function DoctorProfile({ user, profile }: any) {
     specialization: profile?.specialization || "",
     experience: profile?.experience?.toString() || "",
     consultationFee: profile?.consultationFee?.toString() || "",
-    availability: (profile?.availability || []).join(", "),
+    qualification: profile?.qualification || "",
+    onlineFee: profile?.onlineFee?.toString() || "",
+    offlineFee: profile?.offlineFee?.toString() || "",
+    videoFee: profile?.videoFee?.toString() || "",
+    onlineEnabled: profile?.onlineEnabled ?? true,
+    offlineEnabled: profile?.offlineEnabled ?? true,
+    videoEnabled: profile?.videoEnabled ?? false,
+  });
+
+  const [availabilityList, setAvailabilityList] = useState<{ day: string; start: string; end: string }[]>(() => {
+    return (profile?.availability || []).map((s: string) => {
+      const parts = s.trim().split(" ");
+      const day = parts[0] || "Monday";
+      const timeRange = parts[1] || "09:00-17:00";
+      const [start, end] = timeRange.split("-");
+      return { day, start: start || "09:00", end: end || "17:00" };
+    });
   });
 
   const handleSave = () => {
-    const availabilityArr = form.availability
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
+    const availabilityArr = availabilityList.map(a => `${a.day} ${a.start}-${a.end}`);
     updateProfile(
       { ...form, availability: availabilityArr },
       { onSuccess: () => setEditing(false) }
@@ -259,7 +275,7 @@ function DoctorProfile({ user, profile }: any) {
           <CardContent>
             {editing ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <Label>Full Name</Label>
                     <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -273,30 +289,186 @@ function DoctorProfile({ user, profile }: any) {
                     <Input value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} />
                   </div>
                   <div className="space-y-1">
+                    <Label>Qualification</Label>
+                    <Input value={form.qualification} onChange={(e) => setForm({ ...form, qualification: e.target.value })} placeholder="e.g., MBBS, MD" />
+                  </div>
+                  <div className="space-y-1">
                     <Label>Experience (years)</Label>
                     <Input type="number" value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} />
                   </div>
-                  <div className="space-y-1 col-span-2">
-                    <Label>Consultation Fee ($)</Label>
+                  <div className="space-y-1">
+                    <Label>Base Consultation Fee ($)</Label>
                     <Input type="number" value={form.consultationFee} onChange={(e) => setForm({ ...form, consultationFee: e.target.value })} />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Availability (comma-separated)</Label>
-                  <Textarea
-                    rows={2}
-                    value={form.availability}
-                    onChange={(e) => setForm({ ...form, availability: e.target.value })}
-                    placeholder="Mon 09:00-17:00, Wed 09:00-17:00"
-                  />
+
+                <div className="space-y-3 pt-2">
+                  <Label className="text-base font-semibold">Consultation Types</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Online */}
+                    <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="online" checked={form.onlineEnabled} onCheckedChange={(c) => setForm({ ...form, onlineEnabled: !!c })} />
+                        <Label htmlFor="online" className="flex items-center gap-1 cursor-pointer"><Globe className="w-4 h-4" /> Online</Label>
+                      </div>
+                      <div className="pl-6">
+                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Input type="number" value={form.onlineFee} onChange={(e) => setForm({ ...form, onlineFee: e.target.value })} disabled={!form.onlineEnabled} className="mt-1 h-8 text-sm" />
+                      </div>
+                    </div>
+                    {/* Offline */}
+                    <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="offline" checked={form.offlineEnabled} onCheckedChange={(c) => setForm({ ...form, offlineEnabled: !!c })} />
+                        <Label htmlFor="offline" className="flex items-center gap-1 cursor-pointer"><Users className="w-4 h-4" /> Offline (In-Clinic)</Label>
+                      </div>
+                      <div className="pl-6">
+                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Input type="number" value={form.offlineFee} onChange={(e) => setForm({ ...form, offlineFee: e.target.value })} disabled={!form.offlineEnabled} className="mt-1 h-8 text-sm" />
+                      </div>
+                    </div>
+                    {/* Video */}
+                    <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="video" checked={form.videoEnabled} onCheckedChange={(c) => setForm({ ...form, videoEnabled: !!c })} />
+                        <Label htmlFor="video" className="flex items-center gap-1 cursor-pointer"><Video className="w-4 h-4" /> Video Call</Label>
+                      </div>
+                      <div className="pl-6">
+                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Input type="number" value={form.videoFee} onChange={(e) => setForm({ ...form, videoFee: e.target.value })} disabled={!form.videoEnabled} className="mt-1 h-8 text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Weekly Schedule</Label>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setAvailabilityList([...availabilityList, { day: "Monday", start: "09:00", end: "17:00" }])}
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add Slot
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {availabilityList.map((slot, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:items-center bg-muted/30 p-2 rounded-lg border">
+                        <Select 
+                          value={slot.day} 
+                          onValueChange={(val) => {
+                            const newList = [...availabilityList];
+                            newList[idx].day = val;
+                            setAvailabilityList(newList);
+                          }}
+                        >
+                          <SelectTrigger className="w-full sm:w-[140px] h-9">
+                            <SelectValue placeholder="Select Day" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => (
+                              <SelectItem key={day} value={day}>{day}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input 
+                            type="time" 
+                            className="h-9 flex-1" 
+                            value={slot.start}
+                            onChange={(e) => {
+                              const newList = [...availabilityList];
+                              newList[idx].start = e.target.value;
+                              setAvailabilityList(newList);
+                            }}
+                          />
+                          <span className="text-xs text-muted-foreground font-medium">to</span>
+                          <Input 
+                            type="time" 
+                            className="h-9 flex-1" 
+                            value={slot.end}
+                            onChange={(e) => {
+                              const newList = [...availabilityList];
+                              newList[idx].end = e.target.value;
+                              setAvailabilityList(newList);
+                            }}
+                          />
+                        </div>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-9 w-9 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                          onClick={() => {
+                            const newList = [...availabilityList];
+                            newList.splice(idx, 1);
+                            setAvailabilityList(newList);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {availabilityList.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                        No availability slots added.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
                 <InfoRow icon={Mail} label="Email" value={user.email} />
                 <InfoRow icon={Stethoscope} label="Specialization" value={profile?.specialization} />
+                <InfoRow icon={GraduationCap} label="Qualification" value={profile?.qualification} />
                 <InfoRow icon={Activity} label="Experience" value={profile?.experience ? `${profile.experience} years` : ""} />
-                <InfoRow icon={DollarSign} label="Consultation Fee" value={profile?.consultationFee ? `$${profile.consultationFee}` : ""} />
+                <InfoRow icon={DollarSign} label="Base Consultation Fee" value={profile?.consultationFee ? `$${profile.consultationFee}` : ""} />
+                
+                {profile?.availability && profile.availability.length > 0 && (
+                  <div className="pt-2">
+                    <Label className="text-xs text-muted-foreground mb-2 block">Weekly Schedule</Label>
+                    <div className="space-y-2">
+                      {profile.availability.map((time: string, i: number) => {
+                        const [day, ...rest] = time.split(" ");
+                        return (
+                          <div key={i} className="flex justify-between items-center text-sm p-2 bg-muted/40 rounded-md">
+                            <span className="font-medium text-primary">{day}</span>
+                            <span className="text-muted-foreground flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5" />
+                              {rest.join(" ")}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="py-3 px-1">
+                  <p className="text-xs text-muted-foreground mb-2">Available Consultation Types</p>
+                  <div className="flex flex-wrap gap-2">
+                    {profile?.onlineEnabled && (
+                      <Badge variant="outline" className="flex items-center gap-1 bg-blue-500/10 text-blue-600 border-blue-200">
+                        <Globe className="w-3 h-3" /> Online {profile?.onlineFee ? `($${profile.onlineFee})` : ""}
+                      </Badge>
+                    )}
+                    {profile?.offlineEnabled && (
+                      <Badge variant="outline" className="flex items-center gap-1 bg-green-500/10 text-green-600 border-green-200">
+                        <Users className="w-3 h-3" /> Offline {profile?.offlineFee ? `($${profile.offlineFee})` : ""}
+                      </Badge>
+                    )}
+                    {profile?.videoEnabled && (
+                      <Badge variant="outline" className="flex items-center gap-1 bg-purple-500/10 text-purple-600 border-purple-200">
+                        <Video className="w-3 h-3" /> Video {profile?.videoFee ? `($${profile.videoFee})` : ""}
+                      </Badge>
+                    )}
+                    {!profile?.onlineEnabled && !profile?.offlineEnabled && !profile?.videoEnabled && (
+                      <span className="text-sm text-muted-foreground italic">None selected</span>
+                    )}
+                  </div>
+                </div>
+
                 {profile?.hospital && (
                   <InfoRow icon={Building2} label="Hospital" value={`${profile.hospital.name} · ${profile.hospital.location}`} />
                 )}
