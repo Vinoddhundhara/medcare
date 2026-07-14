@@ -207,6 +207,8 @@ export function useNotifications() {
   }, [user]);
 
   const storageKey = user ? `seen-notifications-${user.id}` : null;
+  const clearedKey = user ? `cleared-notifications-${user.id}` : null;
+  const [clearVersion, setClearVersion] = useState(0);
 
   const getSeenIds = useCallback((): Set<string> => {
     if (!storageKey) return new Set();
@@ -217,6 +219,16 @@ export function useNotifications() {
       return new Set();
     }
   }, [storageKey]);
+
+  const getClearedIds = useCallback((): Set<string> => {
+    if (!clearedKey) return new Set();
+    try {
+      const raw = localStorage.getItem(clearedKey);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  }, [clearedKey]);
 
   const markAllSeen = useCallback(() => {
     if (!storageKey || !appointments || !user) return;
@@ -232,13 +244,30 @@ export function useNotifications() {
     localStorage.setItem(storageKey, JSON.stringify([...seen]));
   }, [storageKey, getSeenIds]);
 
-  if (!user || !appointments) return { notifications: [], count: 0, markAllSeen, markOneSeen, getSeenIds };
+  const clearAll = useCallback(() => {
+    if (!clearedKey || !user || !appointments) return;
+    const apptNotifs = buildNotifications(appointments, user.role).map(n => n.id);
+    const medNotifs = buildMedicineNotifications(reminders).map(n => n.id);
+    const existing = getClearedIds();
+    [...apptNotifs, ...medNotifs].forEach(id => existing.add(id));
+    localStorage.setItem(clearedKey, JSON.stringify([...existing]));
+    // Also mark them all as seen so sidebar badge goes to 0
+    if (storageKey) {
+      const seen = getSeenIds();
+      [...apptNotifs, ...medNotifs].forEach(id => seen.add(id));
+      localStorage.setItem(storageKey, JSON.stringify([...seen]));
+    }
+    setClearVersion(v => v + 1);
+  }, [clearedKey, storageKey, appointments, user, reminders, getClearedIds, getSeenIds]);
+
+  if (!user || !appointments) return { notifications: [], count: 0, markAllSeen, markOneSeen, getSeenIds, clearAll };
 
   const apptNotifs = buildNotifications(appointments, user.role);
   const medNotifs = user.role === "patient" ? buildMedicineNotifications(reminders) : [];
-  const allNotifications = [...medNotifs, ...apptNotifs];
+  const clearedIds = getClearedIds();
+  const allNotifications = [...medNotifs, ...apptNotifs].filter(n => !clearedIds.has(n.id));
   const seenIds = getSeenIds();
   const count = allNotifications.filter(n => !seenIds.has(n.id)).length;
 
-  return { notifications: allNotifications, count, markAllSeen, markOneSeen, getSeenIds };
+  return { notifications: allNotifications, count, markAllSeen, markOneSeen, getSeenIds, clearAll };
 }

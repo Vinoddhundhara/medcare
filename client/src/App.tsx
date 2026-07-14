@@ -20,6 +20,7 @@ import { Layout } from "@/components/Layout";
 import { MedicineReminderScheduler } from "@/components/MedicineReminderScheduler";
 import { FCMInitializer } from "@/components/FCMInitializer";
 import { SessionExpiryWatcher } from "@/components/SessionExpiryWatcher";
+import { RealtimeWatcher } from "@/components/RealtimeWatcher";
 
 import { AIAssistantProvider } from "@/context/AIAssistantContext";
 
@@ -70,6 +71,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AIAssistantProvider>
         <TooltipProvider>
+          <RealtimeWatcher />
           <FCMInitializer />
           <MedicineReminderScheduler />
           <Router />

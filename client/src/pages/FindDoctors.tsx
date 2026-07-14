@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useDoctors } from "@/hooks/use-doctors";
+import { useState, useEffect, useMemo } from "react";
+import { useDoctors, useBookedSlots } from "@/hooks/use-doctors";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,34 +25,41 @@ function buildDaySlots(availability: string[] = []): DaySlots[] {
   const result: DaySlots[] = [];
   const now = new Date();
 
-  for (let offset = 0; offset <= 13; offset++) {
+  for (let offset = 0; offset <= 6; offset++) {
     const checkDate = addDays(now, offset);
     const dayName = days[checkDate.getDay()];
-    const match = availability.find(a => a.trim().startsWith(dayName));
-    if (!match) continue;
+    // Find all availability slots for this day name
+    const matches = availability.filter(a => a.trim().startsWith(dayName));
+    if (matches.length === 0) continue;
 
-    const timeRange = match.trim().split(" ")[1] || "";
-    const [startStr, endStr] = timeRange.split("-");
-    if (!startStr || !endStr) continue;
+    const slotsMap = new Map<string, Date>(); // time string -> Date to avoid duplicate slot timings
 
-    const [sh, sm] = startStr.split(":").map(Number);
-    const [eh, em] = endStr.split(":").map(Number);
+    for (const match of matches) {
+      const timeRange = match.trim().split(" ")[1] || "";
+      const [startStr, endStr] = timeRange.split("-");
+      if (!startStr || !endStr) continue;
 
-    const slots: Slot[] = [];
-    let slotTime = new Date(checkDate);
-    slotTime.setHours(sh, sm, 0, 0);
-    const endTime = new Date(checkDate);
-    endTime.setHours(eh, em, 0, 0);
+      const [sh, sm] = startStr.split(":").map(Number);
+      const [eh, em] = endStr.split(":").map(Number);
 
-    while (slotTime < endTime) {
-      if (slotTime > now) {
-        slots.push({
-          time: format(slotTime, "h:mm a"),
-          dateTime: new Date(slotTime),
-        });
+      let slotTime = new Date(checkDate);
+      slotTime.setHours(sh, sm, 0, 0);
+      const endTime = new Date(checkDate);
+      endTime.setHours(eh, em, 0, 0);
+
+      while (slotTime < endTime) {
+        if (slotTime > now) {
+          const timeStr = format(slotTime, "h:mm a");
+          slotsMap.set(timeStr, new Date(slotTime));
+        }
+        slotTime = new Date(slotTime.getTime() + 30 * 60 * 1000);
       }
-      slotTime = new Date(slotTime.getTime() + 30 * 60 * 1000);
     }
+
+    // Convert map to sorted slots array
+    const slots: Slot[] = Array.from(slotsMap.entries())
+      .map(([time, dateTime]) => ({ time, dateTime }))
+      .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
 
     if (slots.length > 0) {
       const isToday = isSameDay(checkDate, now);
@@ -82,39 +89,23 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [reason, setReason] = useState(prefilledReason);
   const [confirmed, setConfirmed] = useState(false);
-  // Set of ISO strings for already-booked slots
-  const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
+
+  const { data: bookedSlotsData } = useBookedSlots(doctor.id, open);
 
   const daySlots = buildDaySlots(doctor.availability || []);
 
-  // Fetch booked slots when dialog opens
-  useEffect(() => {
-    if (!open) return;
-    fetch(`/api/doctors/${doctor.id}/booked-slots`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.bookedSlots) {
-          const normalized = new Set<string>();
-          data.bookedSlots.forEach((iso: string) => {
-            // Add ISO UTC version
-            normalized.add(iso.slice(0, 16));
-            // Also add local date-time version to handle timezone differences
-            const d = new Date(iso);
-            const localKey = `${format(d, "yyyy-MM-dd")}T${format(d, "HH:mm")}`;
-            normalized.add(localKey);
-          });
-          setBookedSlots(normalized);
-        }
-      })
-      .catch(() => {});
-  }, [open, doctor.id]);
+  const bookedSlots = useMemo(() => {
+    const timeSet = new Set<number>();
+    if (bookedSlotsData) {
+      bookedSlotsData.forEach((iso: string) => {
+        timeSet.add(new Date(iso).getTime());
+      });
+    }
+    return timeSet;
+  }, [bookedSlotsData]);
 
   const isBooked = (slot: Slot) => {
-    // Compare both as UTC HH:MM to avoid timezone issues
-    const slotUTC = slot.dateTime.toISOString().slice(0, 16); // "2026-07-13T09:30"
-    // Also check local time string in case server returns local times
-    const slotLocal = `${format(slot.dateTime, "yyyy-MM-dd")}T${format(slot.dateTime, "HH:mm")}`;
-    return bookedSlots.has(slotUTC) || bookedSlots.has(slotLocal);
+    return bookedSlots.has(slot.dateTime.getTime());
   };
 
   const handleOpen = () => {
@@ -122,7 +113,6 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
     setSelectedSlot(null);
     setReason(prefilledReason);
     setConfirmed(false);
-    setBookedSlots(new Set());
     setOpen(true);
   };
 
@@ -132,24 +122,11 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
       { doctorId: doctor.id, date: selectedSlot.dateTime, reason },
       {
         onSuccess: () => {
-          // Immediately mark the slot as booked in local state
-          const slotKey = selectedSlot.dateTime.toISOString().slice(0, 16);
-          setBookedSlots(prev => new Set([...prev, slotKey]));
           setConfirmed(true);
           setTimeout(() => setOpen(false), 2000);
         },
         onError: () => {
-          // On conflict (409), refresh booked slots so UI is up-to-date
-          fetch(`/api/doctors/${doctor.id}/booked-slots`)
-            .then(r => r.json())
-            .then(data => {
-              if (data.bookedSlots) {
-                setBookedSlots(new Set(data.bookedSlots.map((iso: string) => iso.slice(0, 16))));
-              }
-              // Clear selected slot since it's now booked
-              setSelectedSlot(null);
-            })
-            .catch(() => {});
+          setSelectedSlot(null);
         },
       }
     );
@@ -269,13 +246,6 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                               </button>
                             );
                           })}
-                        </div>
-
-                        {/* Legend */}
-                        <div className="flex gap-4 mt-2 text-[10px] text-muted-foreground">
-                          <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-card border border-border" />Available</div>
-                          <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-primary" />Selected</div>
-                          <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-200 border border-red-300" />Booked</div>
                         </div>
                       </div>
                     )}

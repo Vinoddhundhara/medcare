@@ -5,7 +5,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Calendar, ChevronDown, ChevronUp, Link as LinkIcon } from "lucide-react";
+import { Bell, Calendar, ChevronDown, ChevronUp, Link as LinkIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -43,7 +43,7 @@ const TYPE_DETAIL: Record<string, string> = {
 export default function Notifications() {
   const { user } = useAuth();
   const { data: appointments, isLoading } = useAppointments();
-  const { notifications, count, markOneSeen, getSeenIds } = useNotifications();
+  const { notifications, count, markOneSeen, getSeenIds, clearAll } = useNotifications();
 
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -69,11 +69,24 @@ export default function Notifications() {
             Stay updated on your appointments and reminders.
           </p>
         </div>
-        {count > 0 && (
-          <Badge className="bg-red-500 text-white border-0 text-sm px-3 py-1">
-            {count} new
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {count > 0 && (
+            <Badge className="bg-red-500 text-white border-0 text-sm px-3 py-1">
+              {count} new
+            </Badge>
+          )}
+          {notifications.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 gap-1.5"
+              onClick={clearAll}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Clear All
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (

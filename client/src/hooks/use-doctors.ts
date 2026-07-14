@@ -38,3 +38,16 @@ export function useDoctor(id: number) {
     enabled: !!id,
   });
 }
+
+export function useBookedSlots(doctorId: number, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["/api/doctors", doctorId, "booked-slots"],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/${doctorId}/booked-slots`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch booked slots");
+      const data = await res.json();
+      return data.bookedSlots as string[];
+    },
+    enabled: !!doctorId && enabled,
+  });
+}
