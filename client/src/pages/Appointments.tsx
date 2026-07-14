@@ -242,14 +242,14 @@ export default function Appointments() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-display font-bold tracking-tight">Appointments</h2>
-        <p className="text-muted-foreground mt-1">
+        <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">Appointments</h2>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
           Manage your schedule and view appointment history.
         </p>
       </div>
 
       <Tabs defaultValue="upcoming" className="w-full">
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2 sm:max-w-[400px]">
           <TabsTrigger value="upcoming">
             Upcoming
             {upcoming.length > 0 && (

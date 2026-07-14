@@ -15,6 +15,7 @@ import Analytics from "@/pages/Analytics";
 import Notifications from "@/pages/Notifications";
 import Profile from "@/pages/Profile";
 import AIAssistant from "@/pages/AIAssistant";
+import NearbyHospitals from "@/pages/NearbyHospitals";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { MedicineReminderScheduler } from "@/components/MedicineReminderScheduler";
@@ -57,6 +58,9 @@ function Router() {
         </Route>
         <Route path="/profile">
           <ProtectedRoute component={Profile} />
+        </Route>
+        <Route path="/nearby-hospitals">
+          <ProtectedRoute component={NearbyHospitals} allowedRoles={["patient"]} />
         </Route>
 
         {/* Fallback */}

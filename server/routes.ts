@@ -2,6 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
+import { fetchNearbyHospitals } from "./services/overpass";
 import { askAI, analyzeSymptoms, analyzeSymptomsFull, answerMedicalQuestion, recommendMedicines, generateDietPlan } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -73,6 +74,37 @@ export async function registerRoutes(
   app.get(api.hospitals.list.path, async (req, res) => {
     const hospitals = await storage.getHospitals();
     res.json(hospitals);
+  });
+
+  // === Nearby Hospitals (OpenStreetMap / Overpass) ===
+  // IMPORTANT: This must be registered BEFORE any dynamic :id route
+  app.get("/api/hospitals/nearby", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const latRaw = req.query.lat;
+    const lngRaw = req.query.lng;
+    const radiusRaw = req.query.radius;
+
+    const lat = parseFloat(latRaw as string);
+    const lng = parseFloat(lngRaw as string);
+    const radius = parseFloat(radiusRaw as string) || 5;
+
+    // Validate coordinates
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({ message: "Invalid latitude or longitude." });
+    }
+
+    // Clamp radius to sensible range (1–50 km)
+    const clampedRadius = Math.min(Math.max(radius, 1), 50);
+
+    try {
+      const hospitals = await fetchNearbyHospitals(lat, lng, clampedRadius);
+      return res.json({ hospitals, count: hospitals.length });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to fetch nearby hospitals.";
+      console.error("[Nearby Hospitals] Error:", message);
+      return res.status(503).json({ message });
+    }
   });
 
   // === Appointments ===

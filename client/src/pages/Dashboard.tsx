@@ -41,7 +41,7 @@ function AppointmentList({ appointments, role }: { appointments: any[], role: st
   return (
     <div className="space-y-4">
       {appointments.slice(0, 5).map((apt) => (
-        <div key={apt.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border/60 hover:border-primary/30 transition-all">
+        <div key={apt.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border border-border/60 hover:border-primary/30 transition-all gap-3">
           <div className="flex items-center gap-4">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold ${apt.status === 'confirmed' ? 'bg-green-100 text-green-700' : apt.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
               {format(new Date(apt.date), "d")}
@@ -105,16 +105,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
         <div>
-          <h2 className="text-3xl font-display font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Welcome back, {user.name}. Here's what's happening today.
           </p>
         </div>
         {isPatient && (
           <Link href="/doctors">
-            <Button className="shadow-lg shadow-primary/20">
+            <Button className="shadow-lg shadow-primary/20 w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" /> Book Appointment
             </Button>
           </Link>
@@ -122,7 +122,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {isDoctor ? (
           <>
             <StatsCard
@@ -189,7 +189,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content Split */}
-      <div className="grid gap-8 md:grid-cols-7">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-7">
         <Card className="md:col-span-4 border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle>Upcoming Appointments</CardTitle>
