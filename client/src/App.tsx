@@ -9,6 +9,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import FindDoctors from "@/pages/FindDoctors";
+import Hospitals from "@/pages/Hospitals";
 import Appointments from "@/pages/Appointments";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
@@ -28,6 +29,9 @@ function Router() {
         </Route>
         <Route path="/doctors">
           <ProtectedRoute component={FindDoctors} allowedRoles={["patient"]} />
+        </Route>
+        <Route path="/hospitals">
+          <ProtectedRoute component={Hospitals} />
         </Route>
         <Route path="/appointments">
           <ProtectedRoute component={Appointments} />

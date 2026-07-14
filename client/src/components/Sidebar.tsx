@@ -8,6 +8,7 @@ import {
   LogOut, 
   Stethoscope, 
   FileText, 
+  Building2,
   Settings 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export function Sidebar() {
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
     { href: "/appointments", label: "Appointments", icon: Calendar, roles: ["patient", "doctor"] },
     { href: "/doctors", label: "Find Doctors", icon: Stethoscope, roles: ["patient"] },
+    { href: "/hospitals", label: "Hospitals", icon: Building2, roles: ["patient", "doctor", "admin"] },
     { href: "/prescriptions", label: "Prescriptions", icon: FileText, roles: ["patient", "doctor"] },
     { href: "/profile", label: "Profile", icon: User, roles: ["patient", "doctor", "admin"] },
   ];
