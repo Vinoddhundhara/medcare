@@ -24,6 +24,7 @@ import { SessionExpiryWatcher } from "@/components/SessionExpiryWatcher";
 import { RealtimeWatcher } from "@/components/RealtimeWatcher";
 
 import { AIAssistantProvider } from "@/context/AIAssistantContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 function Router() {
   return (
@@ -73,6 +74,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
       <AIAssistantProvider>
         <TooltipProvider>
           <RealtimeWatcher />
@@ -82,6 +84,7 @@ function App() {
           <Toaster />
         </TooltipProvider>
       </AIAssistantProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

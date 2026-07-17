@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateAppointment } from "@/hooks/use-appointments";
 import { cn } from "@/lib/utils";
 import { format, addDays, isSameDay } from "date-fns";
+import { useLanguage } from "@/context/LanguageContext";
 
 // ─── Slot generator from availability strings ─────────────────────────────────
 // e.g. "Monday 09:00-17:00" → slots for next matching Monday
@@ -78,12 +79,14 @@ function buildDaySlots(availability: string[] = []): DaySlots[] {
 
 // ─── Slot Picker Dialog ───────────────────────────────────────────────────────
 
-function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", prefilledReason = "" }: {
+function BookAppointmentDialog({ doctor, triggerLabel, prefilledReason = "" }: {
   doctor: any;
   triggerLabel?: string;
   prefilledReason?: string;
 }) {
   const { mutate: createAppointment, isPending } = useCreateAppointment();
+  const { t } = useLanguage();
+  const fd = t.findDoctors;
   const [open, setOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -136,7 +139,7 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
 
   return (
     <>
-      <Button className="w-full" onClick={handleOpen}>{triggerLabel}</Button>
+      <Button className="w-full" onClick={handleOpen}>{triggerLabel || fd.bookAppointment}</Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg p-0 overflow-hidden max-h-[90vh] flex flex-col">
@@ -144,7 +147,7 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
           <div className="bg-gradient-to-r from-primary to-blue-500 p-5 text-white flex-shrink-0">
             <DialogHeader>
               <DialogTitle className="text-white text-lg">
-                Book Appointment
+                {fd.bookAppointment}
               </DialogTitle>
               <DialogDescription className="text-white/80 mt-1">
                 Dr. {doctor.user.name} · {doctor.specialization}
@@ -153,7 +156,7 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
             <div className="flex gap-4 mt-3 text-sm text-white/90">
               <span className="flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5" />
-                {doctor.hospital?.name || "Independent"}
+                {doctor.hospital?.name || fd.independent}
               </span>
               <span className="flex items-center gap-1 font-semibold">
                 ₹{doctor.consultationFee}
@@ -165,7 +168,7 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
             {confirmed ? (
               <div className="text-center py-8 space-y-3">
                 <CheckCircle className="w-14 h-14 text-green-500 mx-auto" />
-                <p className="text-lg font-bold">Appointment Booked!</p>
+                <p className="text-lg font-bold">{fd.appointmentBooked}</p>
                 <p className="text-sm text-muted-foreground">
                   {selectedSlot?.time} · {currentDay?.label}
                 </p>
@@ -175,15 +178,15 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                 {daySlots.length === 0 ? (
                   <div className="text-center py-8">
                     <Calendar className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-                    <p className="font-medium">No availability set</p>
-                    <p className="text-sm text-muted-foreground">This doctor hasn't set their schedule yet.</p>
+                    <p className="font-medium">{fd.noAvailability}</p>
+                    <p className="text-sm text-muted-foreground">{fd.noSchedule}</p>
                   </div>
                 ) : (
                   <>
                     {/* Day selector — scrollable date tabs */}
                     <div>
                       <Label className="text-xs font-semibold text-muted-foreground mb-2 block uppercase tracking-wide">
-                        📅 Select Date
+                        📅 {fd.selectDate}
                       </Label>
                       <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         {daySlots.map((day, i) => (
@@ -200,13 +203,13 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                             <span className="text-[10px] font-semibold uppercase">{day.dayName.slice(0,3)}</span>
                             <span className="text-xl font-bold leading-snug">{format(day.date, "d")}</span>
                             <span className="text-[10px] opacity-75">
-                              {day.label === "Today" ? "Today" : day.label === "Tomorrow" ? "Tmrw" : format(day.date, "MMM")}
+                              {day.label === "Today" ? fd.today : day.label === "Tomorrow" ? fd.tmrw : format(day.date, "MMM")}
                             </span>
                             <span className={cn(
                               "text-[9px] mt-1 px-1.5 py-0.5 rounded-full",
                               selectedDay === i ? "bg-white/20 text-white" : "bg-primary/10 text-primary"
                             )}>
-                              {day.slots.length} slots
+                              {day.slots.length} {fd.slots}
                             </span>
                           </button>
                         ))}
@@ -217,7 +220,7 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                     {currentDay && (
                       <div>
                         <Label className="text-xs font-semibold text-muted-foreground mb-2 block uppercase tracking-wide">
-                          ⏰ Available Slots — {currentDay.label}
+                          ⏰ {fd.availableSlots} — {currentDay.label}
                         </Label>
                         <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
                           {currentDay.slots.map((slot, i) => {
@@ -253,10 +256,10 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                     {/* Reason */}
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block uppercase tracking-wide">
-                        Reason for Visit *
+                        {fd.reasonForVisit} *
                       </Label>
                       <Textarea
-                        placeholder="Describe your symptoms or reason for the appointment…"
+                        placeholder={fd.reasonPlaceholder}
                         value={reason}
                         onChange={e => setReason(e.target.value)}
                         rows={2}
@@ -267,15 +270,15 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                     {/* Summary + Confirm */}
                     {selectedSlot && (
                       <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-sm space-y-1.5">
-                        <p className="font-semibold text-primary">Booking Summary</p>
+                        <p className="font-semibold text-primary">{fd.bookingSummary}</p>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                          <span className="text-muted-foreground">Doctor</span>
+                          <span className="text-muted-foreground">{fd.doctor}</span>
                           <span className="font-medium">Dr. {doctor.user.name}</span>
-                          <span className="text-muted-foreground">Date</span>
+                          <span className="text-muted-foreground">{fd.date}</span>
                           <span className="font-medium">{currentDay?.label}</span>
-                          <span className="text-muted-foreground">Time</span>
+                          <span className="text-muted-foreground">{fd.time}</span>
                           <span className="font-medium">{selectedSlot.time}</span>
-                          <span className="text-muted-foreground">Fee</span>
+                          <span className="text-muted-foreground">{fd.fee}</span>
                           <span className="font-medium">₹{doctor.consultationFee}</span>
                         </div>
                       </div>
@@ -287,10 +290,10 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
                       onClick={handleConfirm}
                     >
                       {isPending
-                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Booking…</>
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{fd.booking}</>
                         : selectedSlot
-                          ? `Confirm — ${selectedSlot.time} · ${currentDay?.label}`
-                          : "Select a slot to continue"
+                          ? `${fd.confirm} — ${selectedSlot.time} · ${currentDay?.label}`
+                          : fd.selectSlot
                       }
                     </Button>
                   </>
@@ -307,6 +310,8 @@ function BookAppointmentDialog({ doctor, triggerLabel = "Book Appointment", pref
 export default function FindDoctors() {
   const [search, setSearch] = useState("");
   const [specialization, setSpecialization] = useState<string>("all");
+  const { t } = useLanguage();
+  const fd = t.findDoctors;
   
   const { data: doctors, isLoading } = useDoctors({ 
     search: search || undefined,
@@ -316,9 +321,9 @@ export default function FindDoctors() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-display font-bold tracking-tight">Find a Doctor</h2>
+        <h2 className="text-3xl font-display font-bold tracking-tight">{fd.title}</h2>
         <p className="text-muted-foreground mt-1">
-          Search for specialists and book your appointment.
+          {fd.subtitle}
         </p>
       </div>
 
@@ -327,7 +332,7 @@ export default function FindDoctors() {
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by name..." 
+            placeholder={fd.searchPlaceholder} 
             className="pl-9 bg-background" 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -336,10 +341,10 @@ export default function FindDoctors() {
         <div className="w-full md:w-[250px]">
           <Select value={specialization} onValueChange={setSpecialization}>
             <SelectTrigger>
-              <SelectValue placeholder="Specialization" />
+              <SelectValue placeholder={fd.allSpecializations} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Specializations</SelectItem>
+              <SelectItem value="all">{fd.allSpecializations}</SelectItem>
               <SelectItem value="Cardiology">Cardiology</SelectItem>
               <SelectItem value="Dermatology">Dermatology</SelectItem>
               <SelectItem value="Neurology">Neurology</SelectItem>
@@ -370,7 +375,7 @@ export default function FindDoctors() {
                      </div>
                   </div>
                   <Badge variant="secondary" className="mb-2">
-                    {doctor.experience} Years Exp.
+                    {doctor.experience} {fd.yearsExp}
                   </Badge>
                 </div>
                 
@@ -388,7 +393,7 @@ export default function FindDoctors() {
                   )}
                   <div className="flex items-center gap-2">
                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                     4.8 Rating
+                     4.8 {fd.rating}
                   </div>
                 </div>
               </CardContent>

@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { format, subDays, isSameDay } from "date-fns";
 import { TrendingUp, Users, Calendar, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
+import { useLanguage } from "@/context/LanguageContext";
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "#22c55e",
@@ -37,6 +38,8 @@ function StatCard({ title, value, icon: Icon, color, sub }: any) {
 export default function Analytics() {
   const { user } = useAuth();
   const { data: appointments, isLoading } = useAppointments();
+  const { t } = useLanguage();
+  const at = t.analytics;
 
   if (!user) return null;
 
@@ -50,11 +53,11 @@ export default function Analytics() {
 
   // Status breakdown for pie chart
   const statusData = [
-    { name: "Confirmed", value: confirmed, color: STATUS_COLORS.confirmed },
-    { name: "Completed", value: completed, color: STATUS_COLORS.completed },
-    { name: "Pending", value: pending, color: STATUS_COLORS.pending },
-    { name: "Rejected", value: rejected, color: STATUS_COLORS.rejected },
-    { name: "Cancelled", value: cancelled, color: STATUS_COLORS.cancelled },
+    { name: t.dashboard.confirmed, value: confirmed, color: STATUS_COLORS.confirmed },
+    { name: at.completed, value: completed, color: STATUS_COLORS.completed },
+    { name: at.pending, value: pending, color: STATUS_COLORS.pending },
+    { name: at.cancelledRejected, value: rejected, color: STATUS_COLORS.rejected },
+    { name: at.cancelledRejected, value: cancelled, color: STATUS_COLORS.cancelled },
   ].filter((d) => d.value > 0);
 
   // Last 7 days trend
@@ -87,9 +90,9 @@ export default function Analytics() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-display font-bold tracking-tight">Analytics</h2>
+        <h2 className="text-3xl font-display font-bold tracking-tight">{at.title}</h2>
         <p className="text-muted-foreground mt-1">
-          Overview of your appointment activity and trends.
+          {at.subtitle}
         </p>
       </div>
 
@@ -100,10 +103,10 @@ export default function Analytics() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Total Appointments" value={total} icon={Calendar} color="bg-blue-500" sub="All time" />
-          <StatCard title="Completed" value={completed} icon={CheckCircle} color="bg-green-500" sub="Successfully done" />
-          <StatCard title="Pending" value={pending} icon={Clock} color="bg-amber-500" sub="Awaiting confirmation" />
-          <StatCard title="Cancelled / Rejected" value={cancelled + rejected} icon={XCircle} color="bg-red-500" sub="Did not proceed" />
+          <StatCard title={at.totalAppointments} value={total} icon={Calendar} color="bg-blue-500" sub={at.allTime} />
+          <StatCard title={at.completed} value={completed} icon={CheckCircle} color="bg-green-500" sub={at.successfullyDone} />
+          <StatCard title={at.pending} value={pending} icon={Clock} color="bg-amber-500" sub={at.awaitingConfirmation} />
+          <StatCard title={at.cancelledRejected} value={cancelled + rejected} icon={XCircle} color="bg-red-500" sub={at.didNotProceed} />
         </div>
       )}
 
@@ -112,9 +115,9 @@ export default function Analytics() {
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" /> Appointments — Last 7 Days
+              <TrendingUp className="w-5 h-5 text-primary" /> {at.last7Days}
             </CardTitle>
-            <CardDescription>Daily appointment count for the past week</CardDescription>
+            <CardDescription>{at.dailyCount}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -126,7 +129,7 @@ export default function Analytics() {
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                   <Tooltip
-                    formatter={(v: any) => [v, "Appointments"]}
+                    formatter={(v: any) => [v, at.appointments]}
                     labelFormatter={(l, p) => p[0]?.payload?.date || l}
                   />
                   <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -140,16 +143,16 @@ export default function Analytics() {
         <Card className="border-border/60 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" /> Status Breakdown
+              <Calendar className="w-5 h-5 text-primary" /> {at.statusBreakdown}
             </CardTitle>
-            <CardDescription>Distribution of appointment statuses</CardDescription>
+            <CardDescription>{at.statusDist}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-56 w-full rounded-lg" />
             ) : statusData.length === 0 ? (
               <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">
-                No data yet
+                {at.noData}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -182,9 +185,9 @@ export default function Analytics() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
-              {user.role === "patient" ? "Most Visited Doctors" : "Most Active Patients"}
+              {user.role === "patient" ? at.mostVisitedDoctors : at.mostActivePatients}
             </CardTitle>
-            <CardDescription>Ranked by number of appointments</CardDescription>
+            <CardDescription>{at.rankedByAppts}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -199,7 +202,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v: any) => [v, "Appointments"]} />
+                  <Tooltip formatter={(v: any) => [v, at.appointments]} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -213,9 +216,9 @@ export default function Analytics() {
         <Card className="border-border/60 shadow-sm mt-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-500" /> Earnings — Last 7 Days
+              <DollarSign className="w-5 h-5 text-green-500" /> {at.earningsLast7}
             </CardTitle>
-            <CardDescription>Daily confirmed earnings from appointments</CardDescription>
+            <CardDescription>{at.dailyEarnings}</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -233,7 +236,7 @@ export default function Analytics() {
                   <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
-                    formatter={(v: any) => [`₹${v}`, "Earnings"]}
+                    formatter={(v: any) => [`₹${v}`, at.earnings]}
                     labelFormatter={(l, p) => p[0]?.payload?.date || l}
                   />
                   <Area type="monotone" dataKey="earnings" stroke="#22c55e" fillOpacity={1} fill="url(#colorEarnings)" />

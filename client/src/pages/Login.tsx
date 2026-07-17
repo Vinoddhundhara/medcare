@@ -16,6 +16,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Link, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 
+import { useLanguage } from "@/context/LanguageContext";
+
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -24,6 +26,8 @@ const loginSchema = z.object({
 export default function Login() {
   const { login, isLoggingIn, user } = useAuth();
   const [, setLocation] = useLocation();
+  const { t } = useLanguage();
+  const au = t.auth;
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -46,8 +50,8 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md shadow-2xl border-primary/10">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-3xl font-display font-bold text-primary">Welcome Back</CardTitle>
-          <CardDescription>Enter your credentials to access your portal</CardDescription>
+          <CardTitle className="text-3xl font-display font-bold text-primary">{au.loginTitle}</CardTitle>
+          <CardDescription>{au.loginSubtitle}</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -57,7 +61,7 @@ export default function Login() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel>{au.email}</FormLabel>
                     <FormControl>
                       <Input placeholder="doctor@medcare.com" {...field} className="h-11 bg-background" />
                     </FormControl>
@@ -70,7 +74,7 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{au.password}</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} className="h-11 bg-background" />
                     </FormControl>
@@ -80,16 +84,16 @@ export default function Login() {
               />
               <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isLoggingIn}>
                 {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Sign In
+                {isLoggingIn ? au.signingIn : au.signIn}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter className="justify-center border-t p-6 bg-muted/10">
           <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            {au.noAccount}{" "}
             <Link href="/register" className="text-primary font-semibold hover:underline">
-              Create Account
+              {au.createAccount}
             </Link>
           </p>
         </CardFooter>

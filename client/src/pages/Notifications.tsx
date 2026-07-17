@@ -5,20 +5,11 @@ import { useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, Calendar, ChevronDown, ChevronUp, Link as LinkIcon, Trash2 } from "lucide-react";
+import { Bell, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-
-const TYPE_LABELS: Record<string, string> = {
-  upcoming:  "Reminder",
-  confirmed: "Confirmed",
-  rejected:  "Rejected",
-  completed: "Completed",
-  pending:   "Pending",
-  cancelled: "Cancelled",
-  medicine:  "Medicine",
-};
+import { useLanguage } from "@/context/LanguageContext";
 
 const TYPE_BADGE_COLORS: Record<string, string> = {
   upcoming:  "bg-blue-100 text-blue-800",
@@ -30,20 +21,12 @@ const TYPE_BADGE_COLORS: Record<string, string> = {
   medicine:  "bg-purple-100 text-purple-800",
 };
 
-const TYPE_DETAIL: Record<string, string> = {
-  upcoming:  "Make sure you arrive on time. Bring any relevant medical documents or test results.",
-  confirmed: "Your appointment is confirmed. You will receive a reminder before the visit.",
-  rejected:  "The doctor was unable to accept this request. Please book a new appointment at a different time.",
-  completed: "This appointment has been completed. Check your Prescriptions page for any medicines prescribed.",
-  pending:   "Your request is waiting for the doctor to respond. You will be notified once confirmed.",
-  cancelled: "This appointment was cancelled. You can book a new one anytime.",
-  medicine:  "It's time to take your medicine as scheduled. Consistent timing helps your medication work effectively. Visit AI Assistant → Medicine Reminders to manage your schedule.",
-};
-
 export default function Notifications() {
   const { user } = useAuth();
   const { data: appointments, isLoading } = useAppointments();
   const { notifications, count, markOneSeen, getSeenIds, clearAll } = useNotifications();
+  const { t } = useLanguage();
+  const nt = t.notifications;
 
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -64,15 +47,15 @@ export default function Notifications() {
     <div className="space-y-8">
       <div className="flex items-end justify-between">
         <div>
-          <h2 className="text-3xl font-display font-bold tracking-tight">Notifications</h2>
+          <h2 className="text-3xl font-display font-bold tracking-tight">{nt.title}</h2>
           <p className="text-muted-foreground mt-1">
-            Stay updated on your appointments and reminders.
+            {nt.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {count > 0 && (
             <Badge className="bg-red-500 text-white border-0 text-sm px-3 py-1">
-              {count} new
+              {count} {nt.newBadge}
             </Badge>
           )}
           {notifications.length > 0 && (
@@ -83,7 +66,7 @@ export default function Notifications() {
               onClick={clearAll}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Clear All
+              {nt.clearAll}
             </Button>
           )}
         </div>
@@ -98,8 +81,8 @@ export default function Notifications() {
       ) : notifications.length === 0 ? (
         <div className="text-center py-20 bg-muted/20 rounded-xl border border-dashed border-border">
           <Bell className="w-14 h-14 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">All caught up!</h3>
-          <p className="text-muted-foreground mt-1">No notifications right now. Check back later.</p>
+          <h3 className="text-lg font-semibold">{nt.allCaughtUp}</h3>
+          <p className="text-muted-foreground mt-1">{nt.noNotifications}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -139,11 +122,11 @@ export default function Notifications() {
                           variant="secondary"
                           className={`text-xs ${TYPE_BADGE_COLORS[n.type]}`}
                         >
-                          {TYPE_LABELS[n.type]}
+                          {nt.typeLabels[n.type as keyof typeof nt.typeLabels] || n.type}
                         </Badge>
                         {!isSeen && (
                           <span className="text-[10px] font-bold text-red-500 uppercase tracking-wide">
-                            New
+                            {nt.new}
                           </span>
                         )}
                       </div>
@@ -168,11 +151,11 @@ export default function Notifications() {
                   {isOpen && (
                     <div className="mt-4 pt-4 border-t border-black/5">
                       <p className="text-sm text-foreground/80 leading-relaxed">
-                        {TYPE_DETAIL[n.type] ?? ""}
+                        {nt.typeDetails[n.type as keyof typeof nt.typeDetails] ?? ""}
                       </p>
                       {n.type === "medicine" && (
                         <Button size="sm" variant="outline" className="mt-3" asChild>
-                          <Link href="/ai-assistant">Manage Reminders</Link>
+                          <Link href="/ai-assistant">{nt.manageReminders}</Link>
                         </Button>
                       )}
                     </div>

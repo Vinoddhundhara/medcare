@@ -8,18 +8,8 @@ import {
   FileText, BarChart2, Bell, Brain, MapPin, Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/context/LanguageContext";
 
-const NAV_LINKS = [
-  { href: "/dashboard",        label: "Overview",         icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
-  { href: "/appointments",     label: "Appointments",     icon: Calendar,        roles: ["patient", "doctor"] },
-  { href: "/doctors",          label: "Find Doctors",     icon: Stethoscope,     roles: ["patient"] },
-  { href: "/nearby-hospitals", label: "Nearby Hospitals", icon: MapPin,          roles: ["patient"] },
-  { href: "/ai-assistant",     label: "AI Assistant",     icon: Brain,           roles: ["patient"] },
-  { href: "/prescriptions",    label: "Prescriptions",    icon: FileText,        roles: ["patient", "doctor"] },
-  { href: "/analytics",        label: "Analytics",        icon: BarChart2,       roles: ["doctor", "admin"] },
-  { href: "/notifications",    label: "Notifications",    icon: Bell,            roles: ["patient", "doctor"], badge: true },
-  { href: "/profile",          label: "Profile",          icon: User,            roles: ["patient", "doctor", "admin"] },
-];
 
 const SIDEBAR_W = 256; // px — must match Layout.tsx offset
 
@@ -27,6 +17,7 @@ export function Sidebar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
   const { count: notifCount } = useNotifications();
+  const { t } = useLanguage();
 
   // true = desktop-wide viewport
   const [isDesktop, setIsDesktop] = useState(() =>
@@ -34,7 +25,6 @@ export function Sidebar() {
   );
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Track viewport size
   useEffect(() => {
     const update = () => {
       const desktop = window.innerWidth >= 768;
@@ -46,14 +36,25 @@ export function Sidebar() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Close drawer on navigation
   useEffect(() => { setMobileOpen(false); }, [location]);
-
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   if (!user) return null;
 
-  const links = NAV_LINKS.filter((l) => l.roles.includes(user.role));
+  // Build nav links using translated labels
+  const NAV_LINKS_TRANSLATED = [
+    { href: "/dashboard",        label: t.nav.overview,         icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
+    { href: "/appointments",     label: t.nav.appointments,     icon: Calendar,        roles: ["patient", "doctor"] },
+    { href: "/doctors",          label: t.nav.findDoctors,      icon: Stethoscope,     roles: ["patient"] },
+    { href: "/nearby-hospitals", label: t.nav.nearbyHospitals,  icon: MapPin,          roles: ["patient"] },
+    { href: "/ai-assistant",     label: t.nav.aiAssistant,      icon: Brain,           roles: ["patient"] },
+    { href: "/prescriptions",    label: t.nav.prescriptions,    icon: FileText,        roles: ["patient", "doctor"] },
+    { href: "/analytics",        label: t.nav.analytics,        icon: BarChart2,       roles: ["doctor", "admin"] },
+    { href: "/notifications",    label: t.nav.notifications,    icon: Bell,            roles: ["patient", "doctor"], badge: true },
+    { href: "/profile",          label: t.nav.profile,          icon: User,            roles: ["patient", "doctor", "admin"] },
+  ];
+
+  const links = NAV_LINKS_TRANSLATED.filter((l) => l.roles.includes(user.role));
 
   // ── Inner content of the sidebar panel ────────────────────────────────────
   const inner = (
@@ -106,6 +107,7 @@ export function Sidebar() {
 
       {/* User + logout */}
       <div className="shrink-0 border-t border-border px-3 py-3">
+
         <div className="flex items-center gap-3 px-2 py-2 mb-1">
           <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">
             {user.name.charAt(0).toUpperCase()}
@@ -121,7 +123,7 @@ export function Sidebar() {
           className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 text-xs"
           onClick={() => logout()}
         >
-          <LogOut className="w-3.5 h-3.5 mr-2" />Sign Out
+          <LogOut className="w-3.5 h-3.5 mr-2" />{t.nav.signOut}
         </Button>
       </div>
     </div>

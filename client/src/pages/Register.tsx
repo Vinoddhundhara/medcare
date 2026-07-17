@@ -18,10 +18,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Link, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { registerUserSchema } from "@shared/schema";
+import { useLanguage } from "@/context/LanguageContext";
 
 export default function Register() {
   const { register, isRegistering, user } = useAuth();
   const [, setLocation] = useLocation();
+  const { t } = useLanguage();
+  const au = t.auth;
 
   // Create a client-side friendly schema that allows empty strings for numbers initially (for UX)
   // then transforms them, or just use the schema directly but handle coerce carefully.
@@ -80,8 +83,8 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4 py-12">
       <Card className="w-full max-w-2xl shadow-2xl border-primary/10">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-display font-bold text-primary">Create Account</CardTitle>
-          <CardDescription>Join MedCare as a Patient or Doctor</CardDescription>
+          <CardTitle className="text-3xl font-display font-bold text-primary">{au.registerTitle}</CardTitle>
+          <CardDescription>{au.registerSubtitle}</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -92,7 +95,7 @@ export default function Register() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Full Name</FormLabel>
+                      <FormLabel>{au.fullName}</FormLabel>
                       <FormControl>
                         <Input placeholder="John Doe" {...field} />
                       </FormControl>
@@ -105,7 +108,7 @@ export default function Register() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>{au.email}</FormLabel>
                       <FormControl>
                         <Input placeholder="john@example.com" {...field} />
                       </FormControl>
@@ -121,7 +124,7 @@ export default function Register() {
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Username</FormLabel>
+                      <FormLabel>{t.profile.fullName}</FormLabel>
                       <FormControl>
                         <Input placeholder="johndoe123" {...field} />
                       </FormControl>
@@ -134,7 +137,7 @@ export default function Register() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{au.password}</FormLabel>
                       <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
                       </FormControl>
@@ -149,7 +152,7 @@ export default function Register() {
                 name="role"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>I am a...</FormLabel>
+                    <FormLabel>{au.roleSelect}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -157,8 +160,8 @@ export default function Register() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="patient">Patient</SelectItem>
-                        <SelectItem value="doctor">Doctor</SelectItem>
+                        <SelectItem value="patient">{au.patient}</SelectItem>
+                        <SelectItem value="doctor">{au.doctor}</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -169,14 +172,14 @@ export default function Register() {
               {/* Conditional Fields: PATIENT */}
               {selectedRole === "patient" && (
                 <div className="space-y-4 border-l-4 border-primary/20 pl-4 animate-in slide-in-from-left-4 fade-in duration-300">
-                  <h3 className="font-semibold text-lg">Patient Details</h3>
+                  <h3 className="font-semibold text-lg">{t.profile.personalInfo}</h3>
                   <div className="grid md:grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
                       name="patientDetails.age"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Age</FormLabel>
+                          <FormLabel>{t.profile.age}</FormLabel>
                           <FormControl>
                             <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
                           </FormControl>
@@ -189,7 +192,7 @@ export default function Register() {
                       name="patientDetails.gender"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Gender</FormLabel>
+                          <FormLabel>{t.profile.gender}</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
@@ -211,7 +214,7 @@ export default function Register() {
                       name="patientDetails.contact"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
+                          <FormLabel>{t.profile.contact}</FormLabel>
                           <FormControl>
                             <Input placeholder="+1 234 567 890" {...field} />
                           </FormControl>
@@ -225,9 +228,9 @@ export default function Register() {
                     name="patientDetails.medicalHistory"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Medical History (Optional)</FormLabel>
+                        <FormLabel>{t.profile.medicalHistory}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Allergies, past surgeries, etc." {...field} value={field.value || ''} />
+                          <Input placeholder={t.profile.medHistPlaceholder} {...field} value={field.value || ''} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -239,14 +242,14 @@ export default function Register() {
               {/* Conditional Fields: DOCTOR */}
               {selectedRole === "doctor" && (
                 <div className="space-y-4 border-l-4 border-primary/20 pl-4 animate-in slide-in-from-left-4 fade-in duration-300">
-                  <h3 className="font-semibold text-lg">Professional Details</h3>
+                  <h3 className="font-semibold text-lg">{t.profile.professionalDetails}</h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="doctorDetails.specialization"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Specialization</FormLabel>
+                          <FormLabel>{t.profile.specialization}</FormLabel>
                           <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
                               <SelectTrigger>
@@ -270,7 +273,7 @@ export default function Register() {
                       name="doctorDetails.experience"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Experience (Years)</FormLabel>
+                          <FormLabel>{t.profile.experience}</FormLabel>
                           <FormControl>
                             <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
                           </FormControl>
@@ -284,7 +287,7 @@ export default function Register() {
                     name="doctorDetails.consultationFee"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Consultation Fee ($)</FormLabel>
+                        <FormLabel>{au.consultationFee}</FormLabel>
                         <FormControl>
                           <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
                         </FormControl>
@@ -297,16 +300,16 @@ export default function Register() {
 
               <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isRegistering}>
                 {isRegistering ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Create Account
+                {isRegistering ? au.registering : au.register}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter className="justify-center border-t p-6 bg-muted/10">
           <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
+            {au.hasAccount}{" "}
             <Link href="/login" className="text-primary font-semibold hover:underline">
-              Log In
+              {au.signIn}
             </Link>
           </p>
         </CardFooter>

@@ -3,7 +3,8 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
 import { fetchNearbyHospitals } from "./services/overpass";
-import { askAI, analyzeSymptoms, analyzeSymptomsFull, answerMedicalQuestion, recommendMedicines, generateDietPlan } from "./ai";
+import { askAI, analyzeSymptoms, analyzeSymptomsFull, answerMedicalQuestion, recommendMedicines, generateDietPlan, chatMedicalAssistant } from "./ai";
+import { detectLanguage } from "./lib/languageDetector";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
@@ -430,8 +431,11 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
         return res.status(400).json({ error: "Symptoms description is required" });
       }
 
-      // Step 1: AI analysis
-      const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptoms);
+      // Auto-detect language from symptoms text
+      const detectedLanguage = detectLanguage(symptoms);
+
+      // Step 1: AI analysis with detected language
+      const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptoms, detectedLanguage);
 
       // Step 2: Find matching doctors from DB by specialization
       const dbSpecialization = mapSpecialistToDbSpecialization(recommendedSpecialist);
@@ -461,10 +465,68 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
         risk,
         urgency,
         doctors: doctorList,
+        language: detectedLanguage,
       });
     } catch (err: any) {
       console.error("[AI Symptoms] Error:", err?.message ?? err);
       res.status(500).json({ error: "Symptom analysis failed" });
+    }
+  });
+
+  app.post("/api/ai/voice-assistant/chat", async (req, res) => {
+    try {
+      const { message, history, language } = req.body;
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ error: "Message is required" });
+      }
+
+      // Use provided language or auto-detect from message
+      const lang: "en" | "hi" = (language === "hi" || language === "en") ? language : detectLanguage(message);
+      const aiResponse = await chatMedicalAssistant(message, history || [], lang);
+
+      let analysisResult = null;
+      if (aiResponse.hasSymptomAnalysis && aiResponse.symptomsCollected) {
+        const symptomsText = aiResponse.symptomsCollected;
+        const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptomsText, lang);
+
+        const dbSpecialization = mapSpecialistToDbSpecialization(recommendedSpecialist);
+        const matchedDoctors = await storage.getDoctors({ specialization: dbSpecialization });
+
+        const doctorList = matchedDoctors.map(d => ({
+          id: d.id,
+          name: d.user.name,
+          specialization: d.specialization,
+          experience: d.experience,
+          consultationFee: d.consultationFee,
+          hospital: d.hospital?.name || "Independent",
+          hospitalId: d.hospitalId,
+          availability: d.availability || [],
+          onlineEnabled: d.onlineEnabled,
+          offlineEnabled: d.offlineEnabled,
+          videoEnabled: d.videoEnabled,
+          onlineFee: d.onlineFee,
+          offlineFee: d.offlineFee,
+          videoFee: d.videoFee,
+        }));
+
+        analysisResult = {
+          symptoms: symptomsText,
+          analysis,
+          recommendedSpecialist,
+          risk,
+          urgency,
+          doctors: doctorList,
+        };
+      }
+
+      res.json({
+        reply: aiResponse.reply,
+        analysis: analysisResult,
+        language: lang,
+      });
+    } catch (err: any) {
+      console.error("[Voice Assistant Chat Error]:", err?.message ?? err);
+      res.status(500).json({ error: "Voice assistant request failed" });
     }
   });
 
@@ -474,8 +536,10 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
       if (!condition || typeof condition !== 'string') {
         return res.status(400).json({ error: "Condition is required" });
       }
-      const recommendation = await recommendMedicines(condition);
-      res.json({ recommendation });
+      // Auto-detect language from condition text
+      const detectedLanguage = detectLanguage(condition);
+      const recommendation = await recommendMedicines(condition, detectedLanguage);
+      res.json({ recommendation, language: detectedLanguage });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Medicine recommendation failed" });
@@ -488,17 +552,20 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
       if (!condition || typeof condition !== "string") {
         return res.status(400).json({ error: "Condition is required" });
       }
+      // Auto-detect language from condition text
+      const detectedLanguage = detectLanguage(condition);
       const plan = await generateDietPlan({
         condition:      condition,
         age:            age || "Not specified",
         weight:         weight || "Not specified",
         activityLevel:  activityLevel || "Moderate",
         foodPreference: foodPreference || "No preference",
+        language:       detectedLanguage,
       });
       if (!plan) {
         return res.status(500).json({ error: "AI returned empty plan" });
       }
-      res.json({ plan });
+      res.json({ plan, language: detectedLanguage });
     } catch (err: any) {
       console.error("[Diet] Route error:", err?.message ?? err);
       res.status(500).json({ error: err?.message || "Diet plan generation failed" });

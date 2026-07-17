@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useLanguage } from "@/context/LanguageContext";
+import { detectLanguage } from "@/lib/languageDetector";
 
 import {
   Brain, Stethoscope, Pill, FlaskConical,
@@ -59,16 +61,6 @@ function AIResultBox({ content }: { content: string }) {
   );
 }
 
-function LoadingDots() {
-  return (
-    <div className="flex gap-1 items-center px-4 py-3">
-      {[0, 0.15, 0.3].map((d, i) => (
-        <span key={i} className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
-          style={{ animationDelay: `${d}s` }} />
-      ))}
-    </div>
-  );
-}
 
 /** Parse the AI analysis text to extract possible conditions */
 function extractConditions(analysis: string): string[] {
@@ -388,17 +380,19 @@ function SymptomCheckerTab() {
     recommendedDoctors, setRecommendedDoctors,
   } = useAIAssistant();
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const ai = t.aiAssistant;
   const [showFullAnalysis, setShowFullAnalysis] = useState(false);
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
   const quickSymptoms = [
-    "Chest pain, left arm pain, sweating",
-    "Severe headache, blurred vision, nausea",
-    "Fever, cough, difficulty breathing",
-    "Joint pain, swelling, stiffness",
-    "Skin rash, itching, redness",
-    "Stomach pain, bloating, nausea",
+    { key: "chestPain", label: ai.symptomsList.chestPain },
+    { key: "headache",  label: ai.symptomsList.headache },
+    { key: "fever",     label: ai.symptomsList.fever },
+    { key: "joint",     label: ai.symptomsList.joint },
+    { key: "rash",      label: ai.symptomsList.rash },
+    { key: "stomach",   label: ai.symptomsList.stomach },
   ];
 
   const analyze = async () => {
@@ -444,15 +438,15 @@ function SymptomCheckerTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Stethoscope className="w-5 h-5 text-primary" />
-            Describe Your Symptoms
+            {ai.symptomHeading}
           </CardTitle>
           <CardDescription>
-            Include what you feel, how long it's been, and any relevant numbers (e.g. blood sugar, temperature).
+            {ai.symptomDesc}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Textarea
-            placeholder="e.g. I have chest pain radiating to my left arm, excessive sweating, and dizziness for the past 2 hours…"
+            placeholder={ai.symptomPlaceholder}
             value={symptoms}
             onChange={e => setSymptoms(e.target.value)}
             rows={4}
@@ -461,31 +455,31 @@ function SymptomCheckerTab() {
 
           {/* Quick symptom chips */}
           <div>
-            <p className="text-xs text-muted-foreground mb-2">Quick pick:</p>
+            <p className="text-xs text-muted-foreground mb-2">{ai.symptomQuickPick}</p>
             <div className="flex flex-wrap gap-2">
               {quickSymptoms.map(s => (
                 <button
-                  key={s}
-                  onClick={() => setSymptoms(s)}
+                  key={s.key}
+                  onClick={() => setSymptoms(s.label)}
                   className={cn(
                     "px-3 py-1.5 text-xs rounded-full border transition-all duration-200",
-                    symptoms === s
+                    symptoms === s.label
                       ? "bg-primary text-primary-foreground border-primary shadow-md"
                       : "border-border hover:bg-muted hover:border-primary/40 hover:shadow-sm"
                   )}
                 >
-                  {s}
+                  {s.label}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{symptoms.length} characters</span>
+            <span className="text-xs text-muted-foreground">{ai.charCount.replace("{count}", String(symptoms.length))}</span>
             <Button onClick={analyze} disabled={symptomLoading || !symptoms.trim()} className="gap-2 shadow-md">
               {symptomLoading
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Analyzing…</>
-                : <><Brain className="w-4 h-4" />Analyze Symptoms</>}
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{ai.analyzing}</>
+                : <><Brain className="w-4 h-4" />{ai.analyzeSymptoms}</>}
             </Button>
           </div>
           {symptomLoading && (
@@ -497,7 +491,7 @@ function SymptomCheckerTab() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                🧠 AI is analyzing your symptoms and finding matching doctors…
+                🧠 {t.common.loading}
               </p>
             </div>
           )}
@@ -513,7 +507,7 @@ function SymptomCheckerTab() {
             <Card className={cn("border-2 shadow-lg", riskColors.bg, riskColors.glow)}>
               <CardContent className="p-5 text-center space-y-2">
                 <Activity className={cn("w-8 h-8 mx-auto", riskColors.icon)} />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Risk Level</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{ai.riskLevel}</p>
                 <RiskBadge text={riskLevel} size="lg" />
               </CardContent>
             </Card>
@@ -522,7 +516,7 @@ function SymptomCheckerTab() {
             <Card className="border-2 border-primary/20 bg-primary/5 shadow-lg shadow-primary/5">
               <CardContent className="p-5 text-center space-y-2">
                 <Heart className="w-8 h-8 mx-auto text-primary" />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recommended Specialist</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{ai.possibleCauses}</p>
                 <p className="text-lg font-bold text-primary">{recommendedSpecialist}</p>
               </CardContent>
             </Card>
@@ -531,7 +525,7 @@ function SymptomCheckerTab() {
             <Card className="border-2 border-amber-200 bg-amber-50/50 shadow-lg shadow-amber-100">
               <CardContent className="p-5 text-center space-y-2">
                 <Zap className="w-8 h-8 mx-auto text-amber-500" />
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Urgency</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{ai.recAction}</p>
                 <p className="text-sm font-semibold text-amber-800">{urgency}</p>
               </CardContent>
             </Card>
@@ -564,7 +558,7 @@ function SymptomCheckerTab() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Brain className="w-4 h-4 text-primary" />
-                  Detailed AI Analysis
+                  {ai.tabSymptom}
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -1019,6 +1013,8 @@ function DietPlanTab() {
     dietLoading, setDietLoading,
   } = useAIAssistant();
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const ai = t.aiAssistant;
 
   const generate = async () => {
     if (!dietCondition.trim() || dietLoading) return;
@@ -1050,8 +1046,14 @@ function DietPlanTab() {
   };
 
   const quickConditions = [
-    "Type 2 Diabetes", "High Blood Pressure", "Weight Loss",
-    "Heart Disease", "PCOS", "Thyroid", "High Cholesterol", "General Health",
+    { key: "diabetes", label: ai.dietQuickConditions.diabetes },
+    { key: "bp",       label: ai.dietQuickConditions.bp },
+    { key: "loss",     label: ai.dietQuickConditions.loss },
+    { key: "heart",    label: ai.dietQuickConditions.heart },
+    { key: "pcos",     label: ai.dietQuickConditions.pcos },
+    { key: "thyroid",  label: ai.dietQuickConditions.thyroid },
+    { key: "cholesterol", label: ai.dietQuickConditions.cholesterol },
+    { key: "general",  label: ai.dietQuickConditions.general },
   ];
 
   return (
@@ -1060,10 +1062,10 @@ function DietPlanTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Utensils className="w-5 h-5 text-primary" />
-            AI Diet & Nutrition Plan
+            {ai.dietHeading}
           </CardTitle>
           <CardDescription>
-            Fill in your details and get a personalised 7-day meal plan tailored to your health condition.
+            {ai.dietDesc}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -1071,21 +1073,21 @@ function DietPlanTab() {
           {/* Quick picks */}
           <div>
             <Label className="text-xs text-muted-foreground mb-2 block">
-              Select your condition (or type below)
+              {ai.dietSelectCond}
             </Label>
             <div className="flex flex-wrap gap-2">
               {quickConditions.map(c => (
                 <button
-                  key={c}
-                  onClick={() => setDietCondition(c)}
+                  key={c.key}
+                  onClick={() => setDietCondition(c.label)}
                   className={cn(
                     "px-3 py-1 text-xs rounded-full border transition-colors",
-                    dietCondition === c
+                    dietCondition === c.label
                       ? "bg-primary text-primary-foreground border-primary"
                       : "border-border hover:bg-muted hover:border-primary/40"
                   )}
                 >
-                  {c}
+                  {c.label}
                 </button>
               ))}
             </div>
@@ -1093,55 +1095,55 @@ function DietPlanTab() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label>Health Condition *</Label>
+              <Label>{ai.dietCondLabel}</Label>
               <Input
-                placeholder="e.g. Type 2 Diabetes, PCOS…"
+                placeholder={ai.dietPlaceholder}
                 value={dietCondition}
                 onChange={e => setDietCondition(e.target.value)}
                 disabled={dietLoading}
               />
             </div>
             <div>
-              <Label>Age</Label>
+              <Label>{ai.dietAgeLabel}</Label>
               <Input
-                placeholder="e.g. 35"
+                placeholder={ai.dietAgePlaceholder}
                 value={dietAge}
                 onChange={e => setDietAge(e.target.value)}
                 disabled={dietLoading}
               />
             </div>
             <div>
-              <Label>Weight</Label>
+              <Label>{ai.dietWeightLabel}</Label>
               <Input
-                placeholder="e.g. 75 kg"
+                placeholder={ai.dietWeightPlaceholder}
                 value={dietWeight}
                 onChange={e => setDietWeight(e.target.value)}
                 disabled={dietLoading}
               />
             </div>
             <div>
-              <Label>Activity Level</Label>
+              <Label>{ai.dietActivityLabel}</Label>
               <Select value={dietActivity} onValueChange={setDietActivity} disabled={dietLoading}>
-                <SelectTrigger><SelectValue placeholder="Select activity level" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={ai.dietActivityPlaceholder} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Sedentary (little/no exercise)">Sedentary (little/no exercise)</SelectItem>
-                  <SelectItem value="Light (1-3 days/week)">Light (1–3 days/week)</SelectItem>
-                  <SelectItem value="Moderate (3-5 days/week)">Moderate (3–5 days/week)</SelectItem>
-                  <SelectItem value="Active (6-7 days/week)">Active (6–7 days/week)</SelectItem>
-                  <SelectItem value="Very Active (athlete)">Very Active (athlete)</SelectItem>
+                  <SelectItem value="Sedentary (little/no exercise)">{ai.dietActivities.sedentary}</SelectItem>
+                  <SelectItem value="Light (1-3 days/week)">{ai.dietActivities.light}</SelectItem>
+                  <SelectItem value="Moderate (3-5 days/week)">{ai.dietActivities.moderate}</SelectItem>
+                  <SelectItem value="Active (6-7 days/week)">{ai.dietActivities.active}</SelectItem>
+                  <SelectItem value="Very Active (athlete)">{ai.dietActivities.veryActive}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label>Food Preference</Label>
+              <Label>{ai.dietFoodPrefLabel}</Label>
               <Select value={dietFoodPref} onValueChange={setDietFoodPref} disabled={dietLoading}>
-                <SelectTrigger><SelectValue placeholder="Select food preference" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={ai.dietFoodPrefPlaceholder} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Vegetarian">Vegetarian</SelectItem>
-                  <SelectItem value="Vegan">Vegan</SelectItem>
-                  <SelectItem value="Non-Vegetarian">Non-Vegetarian</SelectItem>
-                  <SelectItem value="Eggetarian">Eggetarian</SelectItem>
-                  <SelectItem value="No preference">No preference</SelectItem>
+                  <SelectItem value="Vegetarian">{ai.dietFoodPrefs.veg}</SelectItem>
+                  <SelectItem value="Vegan">{ai.dietFoodPrefs.vegan}</SelectItem>
+                  <SelectItem value="Non-Vegetarian">{ai.dietFoodPrefs.nonveg}</SelectItem>
+                  <SelectItem value="Eggetarian">{ai.dietFoodPrefs.egg}</SelectItem>
+                  <SelectItem value="No preference">{ai.dietFoodPrefs.nopref}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1154,8 +1156,8 @@ function DietPlanTab() {
               className="gap-2"
             >
               {dietLoading
-                ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Plan…</>
-                : <><Salad className="w-4 h-4" />Generate 7-Day Diet Plan</>
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{ai.analyzing}</>
+                : <><Salad className="w-4 h-4" />{ai.generateDiet}</>
               }
             </Button>
           </div>
@@ -1197,14 +1199,17 @@ function DietPlanTab() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const tabs = [
-  { id: "symptom",   label: "Symptom Checker",        icon: Stethoscope,   shortLabel: "Symptoms"  },
-  { id: "diet",      label: "Diet & Nutrition",        icon: Salad,         shortLabel: "Diet"      },
-];
 
 function AIAssistantInner() {
   const { symptomLoading, dietLoading } = useAIAssistant();
+  const { t } = useLanguage();
+  const ai = t.aiAssistant;
   const anyLoading = symptomLoading || dietLoading;
+
+  const tabs = [
+    { id: "symptom",   label: ai.tabSymptom,        icon: Stethoscope,   shortLabel: "Symptoms"  },
+    { id: "diet",      label: ai.tabDiet,        icon: Salad,         shortLabel: "Diet"      },
+  ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1223,16 +1228,16 @@ function AIAssistantInner() {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-display font-bold tracking-tight">AI Health Assistant</h2>
+            <h2 className="text-2xl font-display font-bold tracking-tight">{ai.title}</h2>
             {anyLoading && (
               <Badge variant="secondary" className="gap-1.5 text-xs">
                 <Loader2 className="w-3 h-3 animate-spin" />
-                Processing…
+                {ai.analyzing}
               </Badge>
             )}
           </div>
           <p className="text-sm text-muted-foreground">
-            AI-powered symptom analysis with instant doctor recommendations. Results are saved when you switch tabs.
+            {ai.subtitle}
           </p>
         </div>
       </div>
@@ -1245,7 +1250,7 @@ function AIAssistantInner() {
               className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2.5 text-xs sm:text-sm">
               <t.icon className="w-4 h-4 flex-shrink-0" />
               <span className="hidden sm:inline">{t.label}</span>
-              <span className="sm:hidden">{t.shortLabel}</span>
+              <span className="sm:hidden">{t.id === "symptom" ? "Symptoms" : "Diet"}</span>
             </TabsTrigger>
           ))}
         </TabsList>

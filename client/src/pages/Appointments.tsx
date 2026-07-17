@@ -13,6 +13,7 @@ import { Calendar, Check, X, Clock, FileText, Ban, Video, ExternalLink, Link2 } 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 import { api } from "@shared/routes";
+import { useLanguage } from "@/context/LanguageContext";
 
 const statusColors: Record<string, string> = {
   pending:   "bg-yellow-100 text-yellow-800",
@@ -30,14 +31,14 @@ function VideoLinkForm({ appointmentId, existingLink }: { appointmentId: number;
   const [showForm, setShowForm] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSave = async () => {
     if (!link.trim()) return;
     try { new URL(link); } catch {
-      toast({ title: "Invalid URL", description: "Please enter a valid link (e.g. https://meet.google.com/...)", variant: "destructive" });
+      toast({ title: t.appointments.invalidUrl, description: t.appointments.validLink, variant: "destructive" });
       return;
     }
-
     setSaving(true);
     try {
       const res = await fetch(`/api/appointments/${appointmentId}/video-link`, {
@@ -51,7 +52,7 @@ function VideoLinkForm({ appointmentId, existingLink }: { appointmentId: number;
         throw new Error(err.message || "Failed to save link");
       }
       queryClient.invalidateQueries({ queryKey: [api.appointments.list.path], refetchType: "all" });
-      toast({ title: "Video link saved", description: "Patient will receive an email with the link." });
+      toast({ title: t.appointments.videoSaved, description: t.appointments.patientEmail });
       setShowForm(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -62,29 +63,18 @@ function VideoLinkForm({ appointmentId, existingLink }: { appointmentId: number;
 
   if (!showForm) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="text-violet-600 hover:bg-violet-50 border-violet-200"
-        onClick={() => setShowForm(true)}
-      >
+      <Button size="sm" variant="outline" className="text-violet-600 hover:bg-violet-50 border-violet-200" onClick={() => setShowForm(true)}>
         <Video className="w-4 h-4 mr-1" />
-        {existingLink ? "Update Link" : "Add Video Call"}
+        {existingLink ? t.appointments.updateLink : t.appointments.addVideoCall}
       </Button>
     );
   }
 
   return (
     <div className="flex gap-2 items-center w-full mt-3">
-      <Input
-        placeholder="https://meet.google.com/xxx-xxxx-xxx"
-        value={link}
-        onChange={(e) => setLink(e.target.value)}
-        className="text-sm h-9"
-        autoFocus
-      />
+      <Input placeholder="https://meet.google.com/xxx-xxxx-xxx" value={link} onChange={(e) => setLink(e.target.value)} className="text-sm h-9" autoFocus />
       <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
-        {saving ? "Saving..." : "Save"}
+        {saving ? t.appointments.saving : t.appointments.save}
       </Button>
       <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} className="shrink-0">
         <X className="w-4 h-4" />
@@ -99,6 +89,7 @@ export default function Appointments() {
   const { user } = useAuth();
   const { data: appointments, isLoading } = useAppointments();
   const { mutate: updateStatus, isPending: isUpdating } = useUpdateAppointmentStatus();
+  const { t } = useLanguage();
 
   const isDoctor  = user?.role === "doctor";
   const isPatient = user?.role === "patient";
@@ -117,107 +108,75 @@ export default function Appointments() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="flex gap-4">
-              {/* Date block */}
               <div className="flex flex-col items-center justify-center w-16 h-16 bg-primary/10 rounded-xl text-primary font-bold shrink-0">
                 <span className="text-xs uppercase">{format(new Date(apt.date), "MMM")}</span>
                 <span className="text-2xl leading-none">{format(new Date(apt.date), "d")}</span>
               </div>
               <div>
                 <h3 className="font-bold text-lg flex items-center gap-2 flex-wrap">
-                  {isDoctor
-                    ? apt.patient?.user?.name ?? "Unknown Patient"
-                    : `Dr. ${apt.doctor?.user?.name ?? "Unknown"}`}
-                  <Badge variant="secondary" className={statusColors[apt.status]}>
-                    {apt.status}
-                  </Badge>
+                  {isDoctor ? apt.patient?.user?.name ?? "Unknown Patient" : `Dr. ${apt.doctor?.user?.name ?? "Unknown"}`}
+                  <Badge variant="secondary" className={statusColors[apt.status]}>{apt.status}</Badge>
                 </h3>
                 <div className="flex flex-col sm:flex-row sm:gap-4 text-sm text-muted-foreground mt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    {format(new Date(apt.date), "h:mm a")}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" />
-                    {apt.reason || "No reason provided"}
-                  </span>
-                  {!isDoctor && apt.doctor?.specialization && (
-                    <span className="text-primary font-medium">{apt.doctor.specialization}</span>
-                  )}
+                  <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{format(new Date(apt.date), "h:mm a")}</span>
+                  <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{apt.reason || t.appointments.noReason}</span>
+                  {!isDoctor && apt.doctor?.specialization && <span className="text-primary font-medium">{apt.doctor.specialization}</span>}
                 </div>
               </div>
             </div>
-
-            {/* Action buttons */}
             <div className="flex gap-2 shrink-0 flex-wrap">
               {isDoctor && apt.status === "pending" && (
                 <>
                   <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     disabled={isUpdating} onClick={() => updateStatus({ id: apt.id, status: "rejected" })}>
-                    <X className="w-4 h-4 mr-1" /> Reject
+                    <X className="w-4 h-4 mr-1" /> {t.appointments.reject}
                   </Button>
                   <Button size="sm" className="bg-green-600 hover:bg-green-700"
                     disabled={isUpdating} onClick={() => updateStatus({ id: apt.id, status: "confirmed" })}>
-                    <Check className="w-4 h-4 mr-1" /> Confirm
+                    <Check className="w-4 h-4 mr-1" /> {t.appointments.confirm}
                   </Button>
                 </>
               )}
               {isDoctor && apt.status === "confirmed" && (
                 <Button size="sm" variant="outline" className="text-blue-600 hover:bg-blue-50"
                   disabled={isUpdating} onClick={() => updateStatus({ id: apt.id, status: "completed" })}>
-                  <Check className="w-4 h-4 mr-1" /> Mark Completed
+                  <Check className="w-4 h-4 mr-1" /> {t.appointments.markCompleted}
                 </Button>
               )}
               {isPatient && ["pending", "confirmed"].includes(apt.status) && (
                 <Button size="sm" variant="outline" className="text-gray-600 hover:text-red-600 hover:bg-red-50"
                   disabled={isUpdating} onClick={() => updateStatus({ id: apt.id, status: "cancelled" })}>
-                  <Ban className="w-4 h-4 mr-1" /> Cancel
+                  <Ban className="w-4 h-4 mr-1" /> {t.appointments.cancel}
                 </Button>
               )}
             </div>
           </div>
-
-          {/* Video call section */}
           {apt.status === "confirmed" && (
             <div className="border-t border-border/50 pt-3">
-              {/* Doctor: add/update link */}
-              {isDoctor && (
-                <VideoLinkForm appointmentId={apt.id} existingLink={apt.videoCallLink} />
-              )}
-
-              {/* Patient: join call button */}
+              {isDoctor && <VideoLinkForm appointmentId={apt.id} existingLink={apt.videoCallLink} />}
               {isPatient && apt.videoCallLink && (
                 <div className="flex items-center gap-3 p-3 bg-violet-50 border border-violet-100 rounded-xl">
-                  <div className="p-2 bg-violet-100 rounded-lg shrink-0">
-                    <Video className="w-4 h-4 text-violet-600" />
-                  </div>
+                  <div className="p-2 bg-violet-100 rounded-lg shrink-0"><Video className="w-4 h-4 text-violet-600" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-violet-900">Video Consultation Ready</p>
+                    <p className="text-sm font-semibold text-violet-900">{t.appointments.videoReady}</p>
                     <p className="text-xs text-violet-600 truncate">{apt.videoCallLink}</p>
                   </div>
                   <a href={apt.videoCallLink} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" className="bg-violet-600 hover:bg-violet-700 shrink-0">
-                      <ExternalLink className="w-4 h-4 mr-1" /> Join Call
+                      <ExternalLink className="w-4 h-4 mr-1" /> {t.appointments.joinCall}
                     </Button>
                   </a>
                 </div>
               )}
-
-              {/* Patient: no link yet */}
               {isPatient && !apt.videoCallLink && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Link2 className="w-4 h-4" />
-                  Waiting for doctor to add video call link...
+                  <Link2 className="w-4 h-4" />{t.appointments.waitingVideo}
                 </div>
               )}
-
-              {/* Doctor: show existing link preview */}
               {isDoctor && apt.videoCallLink && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-violet-600">
                   <Video className="w-4 h-4 shrink-0" />
-                  <a href={apt.videoCallLink} target="_blank" rel="noopener noreferrer"
-                    className="truncate hover:underline">
-                    {apt.videoCallLink}
-                  </a>
+                  <a href={apt.videoCallLink} target="_blank" rel="noopener noreferrer" className="truncate hover:underline">{apt.videoCallLink}</a>
                 </div>
               )}
             </div>
@@ -233,7 +192,7 @@ export default function Appointments() {
       <p className="text-muted-foreground">{message}</p>
       {showBook && (
         <Link href="/doctors">
-          <Button className="mt-4">Book an Appointment</Button>
+          <Button className="mt-4">{t.appointments.bookAnAppt}</Button>
         </Link>
       )}
     </div>
@@ -242,41 +201,32 @@ export default function Appointments() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">Appointments</h2>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-          Manage your schedule and view appointment history.
-        </p>
+        <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight">{t.appointments.title}</h2>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t.appointments.subtitle}</p>
       </div>
-
       <Tabs defaultValue="upcoming" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:max-w-[400px]">
           <TabsTrigger value="upcoming">
-            Upcoming
+            {t.appointments.upcoming}
             {upcoming.length > 0 && (
-              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">
-                {upcoming.length}
-              </span>
+              <span className="ml-2 bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5">{upcoming.length}</span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="history">{t.appointments.history}</TabsTrigger>
         </TabsList>
-
         <TabsContent value="upcoming" className="mt-6 space-y-4">
           {isLoading
             ? [1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-xl" />)
             : upcoming.length === 0
-              ? <EmptyState message="No upcoming appointments." showBook={isPatient} />
-              : upcoming.map((apt: any) => <AppointmentCard key={apt.id} apt={apt} />)
-          }
+              ? <EmptyState message={t.appointments.noUpcoming} showBook={isPatient} />
+              : upcoming.map((apt: any) => <AppointmentCard key={apt.id} apt={apt} />)}
         </TabsContent>
-
         <TabsContent value="history" className="mt-6 space-y-4">
           {isLoading
             ? [1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full rounded-xl" />)
             : history.length === 0
-              ? <EmptyState message="No appointment history yet." />
-              : history.map((apt: any) => <AppointmentCard key={apt.id} apt={apt} />)
-          }
+              ? <EmptyState message={t.appointments.noHistory} />
+              : history.map((apt: any) => <AppointmentCard key={apt.id} apt={apt} />)}
         </TabsContent>
       </Tabs>
     </div>

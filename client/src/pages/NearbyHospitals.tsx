@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   MapPin, Phone, Globe, Navigation, RefreshCw,
   Hospital, AlertCircle, Loader2, Search, List, Map,
-  Clock, Accessibility, ChevronRight,
+  Clock, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useNearbyHospitals, type NearbyHospital } from "@/hooks/use-nearby-hospitals";
 import { useQueryClient } from "@tanstack/react-query";
 import { HospitalMap } from "@/components/HospitalMap";
+import { useLanguage } from "@/context/LanguageContext";
 
 // ─── Geolocation hook ─────────────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ function HospitalCard({
   onSelect: () => void;
   onViewOnMap: () => void;
 }) {
+  const { t } = useLanguage();
+  const nh = t.nearbyHospitals;
   const dirUrl = `https://www.openstreetmap.org/directions?to=${hospital.latitude},${hospital.longitude}`;
 
   return (
@@ -130,12 +133,12 @@ function HospitalCard({
               </Badge>
               {hospital.emergency === true && (
                 <Badge className="text-xs h-5 px-2 bg-red-100 text-red-700 border-red-200 hover:bg-red-100">
-                  🚨 Emergency
+                  🚨 {nh.emergencyBadge}
                 </Badge>
               )}
               {hospital.wheelchair === "yes" && (
                 <Badge className="text-xs h-5 px-2 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100">
-                  ♿ Accessible
+                  ♿ {nh.accessibleBadge}
                 </Badge>
               )}
             </div>
@@ -151,7 +154,7 @@ function HospitalCard({
           <div className="flex items-start gap-1.5">
             <MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 opacity-60" />
             <span className="line-clamp-2">
-              {hospital.address ?? "Address not available"}
+              {hospital.address ?? nh.addressNotAvail}
             </span>
           </div>
 
@@ -185,7 +188,7 @@ function HospitalCard({
             onClick={(e) => { e.stopPropagation(); onViewOnMap(); }}
           >
             <Map className="w-3 h-3" />
-            <span className="hidden sm:inline">View on </span>Map
+            <span className="hidden sm:inline">{nh.listTab} on </span>{nh.mapTab}
           </Button>
 
           <Button
@@ -194,7 +197,7 @@ function HospitalCard({
             onClick={(e) => { e.stopPropagation(); window.open(dirUrl, "_blank", "noopener,noreferrer"); }}
           >
             <Navigation className="w-3 h-3" />
-            <span className="hidden sm:inline">Get </span>Directions
+            <span className="hidden sm:inline">Get </span>{nh.getDirections}
           </Button>
 
           {hospital.phone && (
@@ -204,7 +207,7 @@ function HospitalCard({
               onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${hospital.phone}`; }}
             >
               <Phone className="w-3 h-3" />
-              Call
+              {nh.call}
             </Button>
           )}
 
@@ -220,7 +223,7 @@ function HospitalCard({
               }}
             >
               <Globe className="w-3 h-3" />
-              Website
+              {nh.website}
             </Button>
           )}
         </div>
@@ -234,6 +237,8 @@ function HospitalCard({
 export default function NearbyHospitals() {
   const { state: loc, request: requestLocation } = useGeolocation();
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
+  const nh = t.nearbyHospitals;
 
   const [radius, setRadius]         = useState<number>(5);
   const [sort, setSort]             = useState<SortOption>("nearest");
@@ -292,10 +297,10 @@ export default function NearbyHospitals() {
       <Select value={String(radius)} onValueChange={(v) => { setSelectedId(null); setRadius(Number(v)); }}>
         <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="2">Within 2 km</SelectItem>
-          <SelectItem value="5">Within 5 km</SelectItem>
-          <SelectItem value="10">Within 10 km</SelectItem>
-          <SelectItem value="20">Within 20 km</SelectItem>
+          <SelectItem value="2">{nh.withinKm.replace("{dist}", "2")}</SelectItem>
+          <SelectItem value="5">{nh.withinKm.replace("{dist}", "5")}</SelectItem>
+          <SelectItem value="10">{nh.withinKm.replace("{dist}", "10")}</SelectItem>
+          <SelectItem value="20">{nh.withinKm.replace("{dist}", "20")}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -303,10 +308,10 @@ export default function NearbyHospitals() {
       <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
         <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="nearest">Nearest First</SelectItem>
-          <SelectItem value="emergency">Emergency Only</SelectItem>
-          <SelectItem value="phone">Has Phone</SelectItem>
-          <SelectItem value="website">Has Website</SelectItem>
+          <SelectItem value="nearest">{nh.nearestFirst}</SelectItem>
+          <SelectItem value="emergency">{nh.emergencyOnly}</SelectItem>
+          <SelectItem value="phone">{nh.hasPhone}</SelectItem>
+          <SelectItem value="website">{nh.hasWebsite}</SelectItem>
         </SelectContent>
       </Select>
 
@@ -318,7 +323,7 @@ export default function NearbyHospitals() {
       {/* Count */}
       {!isLoading && data && (
         <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
-          {displayed.length} hospital{displayed.length !== 1 ? "s" : ""}
+          {displayed.length} {displayed.length !== 1 ? nh.hospitalsCount : nh.hospitalCountSingle}
         </span>
       )}
     </div>
@@ -329,9 +334,9 @@ export default function NearbyHospitals() {
       {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Find Hospitals Near You</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">{nh.title}</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Discover nearby hospitals and healthcare facilities based on your current location.
+            {nh.subtitle}
           </p>
         </div>
         {loc.status !== "success" && (
@@ -344,7 +349,7 @@ export default function NearbyHospitals() {
             {loc.status === "loading"
               ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               : <MapPin className="w-4 h-4 mr-2" />}
-            Use My Location
+            {nh.useMyLocation}
           </Button>
         )}
       </div>
@@ -357,13 +362,13 @@ export default function NearbyHospitals() {
               <MapPin className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold text-base">Enable Location Access</h3>
+              <h3 className="font-semibold text-base">{nh.enableLocation}</h3>
               <p className="text-muted-foreground text-sm mt-1 max-w-xs">
-                Location access is required to find hospitals near you. Click below to get started.
+                {nh.locationRequired}
               </p>
             </div>
             <Button onClick={requestLocation}>
-              <MapPin className="w-4 h-4 mr-2" />Use My Location
+              <MapPin className="w-4 h-4 mr-2" />{nh.useMyLocation}
             </Button>
           </CardContent>
         </Card>
@@ -408,7 +413,7 @@ export default function NearbyHospitals() {
               )}
               onClick={() => setMobileTab("list")}
             >
-              <List className="w-4 h-4" />List
+              <List className="w-4 h-4" />{nh.listTab}
             </button>
             <button
               className={cn(
@@ -417,7 +422,7 @@ export default function NearbyHospitals() {
               )}
               onClick={() => setMobileTab("map")}
             >
-              <Map className="w-4 h-4" />Map
+              <Map className="w-4 h-4" />{nh.mapTab}
             </button>
           </div>
 
@@ -438,12 +443,12 @@ export default function NearbyHospitals() {
                   <CardContent className="flex flex-col items-center py-8 text-center gap-3 px-6">
                     <AlertCircle className="w-7 h-7 text-destructive" />
                     <div>
-                      <h3 className="font-semibold text-sm">Could not load hospitals</h3>
+                      <h3 className="font-semibold text-sm">{nh.couldNotLoad}</h3>
                       <p className="text-muted-foreground text-xs mt-1 max-w-xs">
-                        {(error as Error)?.message ?? "Please check your connection and try again."}
+                        {(error as Error)?.message ?? nh.checkConnection}
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={handleRefresh}>Try Again</Button>
+                    <Button variant="outline" size="sm" onClick={handleRefresh}>{nh.tryAgain}</Button>
                   </CardContent>
                 </Card>
               )}
@@ -457,18 +462,18 @@ export default function NearbyHospitals() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-sm">
-                        No hospitals found within {radius} km
-                        {sort !== "nearest" ? " matching the filter" : ""}
+                        {nh.noHospitals.replace("{dist}", String(radius))}
+                        {sort !== "nearest" ? nh.noHospitalsMatching : ""}
                       </h3>
                       <p className="text-muted-foreground text-xs mt-1">
-                        {sort !== "nearest" ? "Try a different filter or wider radius." : "Try a wider search radius."}
+                        {sort !== "nearest" ? nh.tryDifferentFilter : nh.tryWider}
                       </p>
                     </div>
                     {sort !== "nearest" ? (
-                      <Button variant="outline" size="sm" onClick={() => setSort("nearest")}>Clear Filter</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSort("nearest")}>{nh.clearFilter}</Button>
                     ) : (
                       <Button variant="outline" size="sm" onClick={() => { setRadius(10); }}>
-                        Search within 10 km
+                        {nh.searchWithin10}
                       </Button>
                     )}
                   </CardContent>
@@ -499,7 +504,7 @@ export default function NearbyHospitals() {
               {isLoading ? (
                 <div className="w-full h-full rounded-xl bg-muted flex flex-col items-center justify-center gap-3">
                   <Loader2 className="w-7 h-7 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">Finding hospitals…</p>
+                  <p className="text-sm text-muted-foreground">{nh.findingHospitals}</p>
                 </div>
               ) : loc.status === "success" ? (
                 <HospitalMap

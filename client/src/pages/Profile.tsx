@@ -16,6 +16,7 @@ import {
   Video, Globe, Users, GraduationCap, Plus, Trash2
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLanguage } from "@/context/LanguageContext";
 
 // ─── API hooks ────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ function useProfile() {
 function useUpdateProfile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const pt = t.profile;
 
   return useMutation({
     mutationFn: async (data: Record<string, any>) => {
@@ -51,10 +54,10 @@ function useUpdateProfile() {
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/profile"], data);
       queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Profile updated", description: "Your changes have been saved." });
+      toast({ title: pt.profileUpdated, description: pt.changesSaved });
     },
     onError: (err: Error) => {
-      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+      toast({ title: pt.updateFailed, description: err.message, variant: "destructive" });
     },
   });
 }
@@ -79,6 +82,8 @@ function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value
 
 function PatientProfile({ user, profile }: any) {
   const { mutate: updateProfile, isPending } = useUpdateProfile();
+  const { t } = useLanguage();
+  const pt = t.profile;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: user.name,
@@ -113,15 +118,15 @@ function PatientProfile({ user, profile }: any) {
               {editing ? (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
-                    <X className="w-4 h-4 mr-1" /> Cancel
+                    <X className="w-4 h-4 mr-1" /> {pt.cancel}
                   </Button>
                   <Button size="sm" onClick={handleSave} disabled={isPending}>
-                    <Save className="w-4 h-4 mr-1" /> {isPending ? "Saving..." : "Save"}
+                    <Save className="w-4 h-4 mr-1" /> {isPending ? pt.saving : pt.save}
                   </Button>
                 </>
               ) : (
                 <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  <Edit3 className="w-4 h-4 mr-1" /> Edit Profile
+                  <Edit3 className="w-4 h-4 mr-1" /> {pt.editProfile}
                 </Button>
               )}
             </div>
@@ -132,50 +137,50 @@ function PatientProfile({ user, profile }: any) {
       {/* Personal info */}
       <Card className="border-border/60 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Personal Information</CardTitle>
+          <CardTitle className="text-base">{pt.personalInfo}</CardTitle>
         </CardHeader>
         <CardContent>
           {editing ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label>Full Name</Label>
+                <Label>{pt.fullName}</Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Email</Label>
+                <Label>{pt.email}</Label>
                 <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Contact</Label>
+                <Label>{pt.contact}</Label>
                 <Input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Age</Label>
+                <Label>{pt.age}</Label>
                 <Input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>Gender</Label>
+                <Label>{pt.gender}</Label>
                 <Input value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} />
               </div>
               <div className="space-y-1 sm:col-span-2">
-                <Label>Medical History</Label>
+                <Label>{pt.medicalHistory}</Label>
                 <Textarea
                   rows={3}
                   value={form.medicalHistory}
                   onChange={(e) => setForm({ ...form, medicalHistory: e.target.value })}
-                  placeholder="Any known conditions, allergies, past surgeries..."
+                  placeholder={pt.medHistPlaceholder}
                 />
               </div>
             </div>
           ) : (
             <div className="divide-y divide-border/50">
-              <InfoRow icon={User} label="Full Name" value={user.name} />
-              <InfoRow icon={Mail} label="Email" value={user.email} />
-              <InfoRow icon={Phone} label="Contact" value={profile?.contact} />
-              <InfoRow icon={Calendar} label="Age" value={profile?.age ? `${profile.age} years` : ""} />
-              <InfoRow icon={User} label="Gender" value={profile?.gender} />
+              <InfoRow icon={User} label={pt.fullName} value={user.name} />
+              <InfoRow icon={Mail} label={pt.email} value={user.email} />
+              <InfoRow icon={Phone} label={pt.contact} value={profile?.contact} />
+              <InfoRow icon={Calendar} label={pt.age} value={profile?.age ? `${profile.age} ${pt.yearsExp}` : ""} />
+              <InfoRow icon={User} label={pt.gender} value={profile?.gender} />
               {profile?.medicalHistory && (
-                <InfoRow icon={FileText} label="Medical History" value={profile.medicalHistory} />
+                <InfoRow icon={FileText} label={pt.medicalHistory} value={profile.medicalHistory} />
               )}
             </div>
           )}
@@ -189,6 +194,8 @@ function PatientProfile({ user, profile }: any) {
 
 function DoctorProfile({ user, profile }: any) {
   const { mutate: updateProfile, isPending } = useUpdateProfile();
+  const { t } = useLanguage();
+  const pt = t.profile;
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: user.name,
@@ -250,15 +257,15 @@ function DoctorProfile({ user, profile }: any) {
               {editing ? (
                 <>
                   <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
-                    <X className="w-4 h-4 mr-1" /> Cancel
+                    <X className="w-4 h-4 mr-1" /> {pt.cancel}
                   </Button>
                   <Button size="sm" onClick={handleSave} disabled={isPending}>
-                    <Save className="w-4 h-4 mr-1" /> {isPending ? "Saving..." : "Save"}
+                    <Save className="w-4 h-4 mr-1" /> {isPending ? pt.saving : pt.save}
                   </Button>
                 </>
               ) : (
                 <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                  <Edit3 className="w-4 h-4 mr-1" /> Edit Profile
+                  <Edit3 className="w-4 h-4 mr-1" /> {pt.editProfile}
                 </Button>
               )}
             </div>
@@ -270,49 +277,49 @@ function DoctorProfile({ user, profile }: any) {
         {/* Professional info */}
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Professional Details</CardTitle>
+            <CardTitle className="text-base">{pt.professionalDetails}</CardTitle>
           </CardHeader>
           <CardContent>
             {editing ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <Label>Full Name</Label>
+                    <Label>{pt.fullName}</Label>
                     <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Email</Label>
+                    <Label>{pt.email}</Label>
                     <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Specialization</Label>
+                    <Label>{pt.specialization}</Label>
                     <Input value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Qualification</Label>
+                    <Label>{pt.qualification}</Label>
                     <Input value={form.qualification} onChange={(e) => setForm({ ...form, qualification: e.target.value })} placeholder="e.g., MBBS, MD" />
                   </div>
                   <div className="space-y-1">
-                    <Label>Experience (years)</Label>
+                    <Label>{pt.experience}</Label>
                     <Input type="number" value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Base Consultation Fee ($)</Label>
+                    <Label>{pt.baseConsultFee} ($)</Label>
                     <Input type="number" value={form.consultationFee} onChange={(e) => setForm({ ...form, consultationFee: e.target.value })} />
                   </div>
                 </div>
 
                 <div className="space-y-3 pt-2">
-                  <Label className="text-base font-semibold">Consultation Types</Label>
+                  <Label className="text-base font-semibold">{pt.consultTypes}</Label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Online */}
                     <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
                       <div className="flex items-center space-x-2">
                         <Checkbox id="online" checked={form.onlineEnabled} onCheckedChange={(c) => setForm({ ...form, onlineEnabled: !!c })} />
-                        <Label htmlFor="online" className="flex items-center gap-1 cursor-pointer"><Globe className="w-4 h-4" /> Online</Label>
+                        <Label htmlFor="online" className="flex items-center gap-1 cursor-pointer"><Globe className="w-4 h-4" /> {pt.online}</Label>
                       </div>
                       <div className="pl-6">
-                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Label className="text-xs text-muted-foreground">{pt.fee} ($)</Label>
                         <Input type="number" value={form.onlineFee} onChange={(e) => setForm({ ...form, onlineFee: e.target.value })} disabled={!form.onlineEnabled} className="mt-1 h-8 text-sm" />
                       </div>
                     </div>
@@ -320,10 +327,10 @@ function DoctorProfile({ user, profile }: any) {
                     <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
                       <div className="flex items-center space-x-2">
                         <Checkbox id="offline" checked={form.offlineEnabled} onCheckedChange={(c) => setForm({ ...form, offlineEnabled: !!c })} />
-                        <Label htmlFor="offline" className="flex items-center gap-1 cursor-pointer"><Users className="w-4 h-4" /> Offline (In-Clinic)</Label>
+                        <Label htmlFor="offline" className="flex items-center gap-1 cursor-pointer"><Users className="w-4 h-4" /> {pt.offline}</Label>
                       </div>
                       <div className="pl-6">
-                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Label className="text-xs text-muted-foreground">{pt.fee} ($)</Label>
                         <Input type="number" value={form.offlineFee} onChange={(e) => setForm({ ...form, offlineFee: e.target.value })} disabled={!form.offlineEnabled} className="mt-1 h-8 text-sm" />
                       </div>
                     </div>
@@ -331,10 +338,10 @@ function DoctorProfile({ user, profile }: any) {
                     <div className="flex flex-col space-y-2 p-3 border rounded-lg bg-card shadow-sm">
                       <div className="flex items-center space-x-2">
                         <Checkbox id="video" checked={form.videoEnabled} onCheckedChange={(c) => setForm({ ...form, videoEnabled: !!c })} />
-                        <Label htmlFor="video" className="flex items-center gap-1 cursor-pointer"><Video className="w-4 h-4" /> Video Call</Label>
+                        <Label htmlFor="video" className="flex items-center gap-1 cursor-pointer"><Video className="w-4 h-4" /> {pt.videoCall}</Label>
                       </div>
                       <div className="pl-6">
-                        <Label className="text-xs text-muted-foreground">Fee ($)</Label>
+                        <Label className="text-xs text-muted-foreground">{pt.fee} ($)</Label>
                         <Input type="number" value={form.videoFee} onChange={(e) => setForm({ ...form, videoFee: e.target.value })} disabled={!form.videoEnabled} className="mt-1 h-8 text-sm" />
                       </div>
                     </div>
@@ -342,13 +349,13 @@ function DoctorProfile({ user, profile }: any) {
                 </div>
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-semibold">Weekly Schedule</Label>
+                    <Label className="text-base font-semibold">{pt.weeklySchedule}</Label>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => setAvailabilityList([...availabilityList, { day: "Monday", start: "09:00", end: "17:00" }])}
                     >
-                      <Plus className="w-4 h-4 mr-1" /> Add Slot
+                      <Plus className="w-4 h-4 mr-1" /> {pt.addSlot}
                     </Button>
                   </div>
                   <div className="space-y-3">
@@ -412,7 +419,7 @@ function DoctorProfile({ user, profile }: any) {
                     ))}
                     {availabilityList.length === 0 && (
                       <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                        No availability slots added.
+                        {pt.noSlots}
                       </p>
                     )}
                   </div>
@@ -420,11 +427,11 @@ function DoctorProfile({ user, profile }: any) {
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                <InfoRow icon={Mail} label="Email" value={user.email} />
-                <InfoRow icon={Stethoscope} label="Specialization" value={profile?.specialization} />
-                <InfoRow icon={GraduationCap} label="Qualification" value={profile?.qualification} />
-                <InfoRow icon={Activity} label="Experience" value={profile?.experience ? `${profile.experience} years` : ""} />
-                <InfoRow icon={DollarSign} label="Base Consultation Fee" value={profile?.consultationFee ? `$${profile.consultationFee}` : ""} />
+                <InfoRow icon={Mail} label={pt.email} value={user.email} />
+                <InfoRow icon={Stethoscope} label={pt.specialization} value={profile?.specialization} />
+                <InfoRow icon={GraduationCap} label={pt.qualification} value={profile?.qualification} />
+                <InfoRow icon={Activity} label={pt.experience} value={profile?.experience ? `${profile.experience} ${pt.yearsExp}` : ""} />
+                <InfoRow icon={DollarSign} label={pt.baseConsultFee} value={profile?.consultationFee ? `$${profile.consultationFee}` : ""} />
                 
                 {profile?.availability && profile.availability.length > 0 && (
                   <div className="pt-2">
@@ -446,31 +453,31 @@ function DoctorProfile({ user, profile }: any) {
                   </div>
                 )}
                 <div className="py-3 px-1">
-                  <p className="text-xs text-muted-foreground mb-2">Available Consultation Types</p>
+                  <p className="text-xs text-muted-foreground mb-2">{pt.availConsult}</p>
                   <div className="flex flex-wrap gap-2">
                     {profile?.onlineEnabled && (
                       <Badge variant="outline" className="flex items-center gap-1 bg-blue-500/10 text-blue-600 border-blue-200">
-                        <Globe className="w-3 h-3" /> Online {profile?.onlineFee ? `($${profile.onlineFee})` : ""}
+                        <Globe className="w-3 h-3" /> {pt.online} {profile?.onlineFee ? `($${profile.onlineFee})` : ""}
                       </Badge>
                     )}
                     {profile?.offlineEnabled && (
                       <Badge variant="outline" className="flex items-center gap-1 bg-green-500/10 text-green-600 border-green-200">
-                        <Users className="w-3 h-3" /> Offline {profile?.offlineFee ? `($${profile.offlineFee})` : ""}
+                        <Users className="w-3 h-3" /> {pt.offline} {profile?.offlineFee ? `($${profile.offlineFee})` : ""}
                       </Badge>
                     )}
                     {profile?.videoEnabled && (
                       <Badge variant="outline" className="flex items-center gap-1 bg-purple-500/10 text-purple-600 border-purple-200">
-                        <Video className="w-3 h-3" /> Video {profile?.videoFee ? `($${profile.videoFee})` : ""}
+                        <Video className="w-3 h-3" /> {pt.videoCall} {profile?.videoFee ? `($${profile.videoFee})` : ""}
                       </Badge>
                     )}
                     {!profile?.onlineEnabled && !profile?.offlineEnabled && !profile?.videoEnabled && (
-                      <span className="text-sm text-muted-foreground italic">None selected</span>
+                      <span className="text-sm text-muted-foreground italic">{pt.noConsultTypes}</span>
                     )}
                   </div>
                 </div>
 
                 {profile?.hospital && (
-                  <InfoRow icon={Building2} label="Hospital" value={`${profile.hospital.name} · ${profile.hospital.location}`} />
+                  <InfoRow icon={Building2} label={pt.hospital} value={`${profile.hospital.name} · ${profile.hospital.location}`} />
                 )}
               </div>
             )}
@@ -480,8 +487,8 @@ function DoctorProfile({ user, profile }: any) {
         {/* Availability */}
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Availability Schedule</CardTitle>
-            <CardDescription>Your weekly working hours</CardDescription>
+            <CardTitle className="text-base">{pt.availabilitySchedule}</CardTitle>
+            <CardDescription>{pt.weeklyHours}</CardDescription>
           </CardHeader>
           <CardContent>
             {profile?.availability && profile.availability.length > 0 ? (
@@ -494,7 +501,7 @@ function DoctorProfile({ user, profile }: any) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No availability set.</p>
+              <p className="text-sm text-muted-foreground">{pt.noAvailability}</p>
             )}
           </CardContent>
         </Card>
@@ -508,6 +515,8 @@ function DoctorProfile({ user, profile }: any) {
 export default function Profile() {
   const { user } = useAuth();
   const { data, isLoading } = useProfile();
+  const { t } = useLanguage();
+  const pt = t.profile;
 
   if (!user) return null;
 
@@ -526,9 +535,9 @@ export default function Profile() {
   return (
     <div className="space-y-2">
       <div className="mb-6">
-        <h2 className="text-3xl font-display font-bold tracking-tight">Profile</h2>
+        <h2 className="text-3xl font-display font-bold tracking-tight">{pt.title}</h2>
         <p className="text-muted-foreground mt-1">
-          View and manage your personal information.
+          {pt.subtitle}
         </p>
       </div>
 
@@ -538,7 +547,7 @@ export default function Profile() {
         <DoctorProfile user={data?.user || user} profile={data?.profile} />
       ) : (
         <Card className="border-border/60 p-8 text-center text-muted-foreground">
-          Admin profile coming soon.
+          {pt.adminSoon}
         </Card>
       )}
     </div>
