@@ -110,6 +110,8 @@ export const doctors = pgTable("doctors", {
   onlineEnabled: boolean("online_enabled").default(true).notNull(),
   offlineEnabled: boolean("offline_enabled").default(true).notNull(),
   videoEnabled: boolean("video_enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // ─────────────────────────────────────────────

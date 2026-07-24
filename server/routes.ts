@@ -1,7 +1,10 @@
 import type { Express } from "express";
 import type { Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
+import { setupHospitalAuth } from "./hospitalAuth";
+import { registerHospitalRoutes } from "./hospitalRoutes";
 import { askAI, analyzeSymptoms, answerMedicalQuestion } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -17,12 +20,28 @@ import { db } from "./db";
 import { eq } from "drizzle-orm";
 import { sendAppointmentBookedEmails, sendAppointmentStatusEmail, sendVideoCallLinkEmail } from "./email";
 
+// WebSocket clients set — used by broadcastUpdate
+let wssClients: Set<WebSocket> = new Set();
+
+export function broadcastUpdate(payload: object) {
+  const msg = JSON.stringify(payload);
+  wssClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  });
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   // Setup Authentication (Passport + Session)
   setupAuth(app);
+
+  // Setup Hospital Authentication & Routes
+  setupHospitalAuth(app);
+  registerHospitalRoutes(app);
 
   // === Doctors ===
   app.get(api.doctors.list.path, async (req, res) => {
@@ -372,6 +391,14 @@ export async function registerRoutes(
 
   // Seed Data
   await seedDatabase();
+
+  // Setup WebSocket server for real-time updates
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+  wss.on("connection", (ws) => {
+    wssClients.add(ws);
+    ws.on("close", () => wssClients.delete(ws));
+    ws.on("error", () => wssClients.delete(ws));
+  });
 
   return httpServer;
 }
