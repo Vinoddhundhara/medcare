@@ -302,7 +302,6 @@ export function AssistantBottomSheet({
                       onMuteToggle={onMuteToggle}
                       selectedDoctor={selectedDoctor}
                       onSelectDoctor={setSelectedDoctor}
-                      language={language}
                     />
                   ))}
                 </div>

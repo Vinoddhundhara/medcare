@@ -45,6 +45,7 @@ export function Sidebar() {
   const NAV_LINKS_TRANSLATED = [
     { href: "/dashboard",        label: t.nav.overview,         icon: LayoutDashboard, roles: ["patient", "doctor", "admin"] },
     { href: "/appointments",     label: t.nav.appointments,     icon: Calendar,        roles: ["patient", "doctor"] },
+    { href: "/hospitals",        label: "Hospitals",            icon: MapPin,          roles: ["patient"] },
     { href: "/doctors",          label: t.nav.findDoctors,      icon: Stethoscope,     roles: ["patient"] },
     { href: "/nearby-hospitals", label: t.nav.nearbyHospitals,  icon: MapPin,          roles: ["patient"] },
     { href: "/ai-assistant",     label: t.nav.aiAssistant,      icon: Brain,           roles: ["patient"] },

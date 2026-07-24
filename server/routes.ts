@@ -2,55 +2,25 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, hashPassword } from "./auth";
-import { fetchNearbyHospitals } from "./services/overpass";
-import { askAI, analyzeSymptoms, analyzeSymptomsFull, answerMedicalQuestion, recommendMedicines, generateDietPlan, chatMedicalAssistant } from "./ai";
-import { detectLanguage } from "./lib/languageDetector";
+import { askAI, analyzeSymptoms, answerMedicalQuestion } from "./ai";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
   insertAppointmentSchema,
   insertPrescriptionSchema,
   insertMedicineReminderSchema,
-  users, patients, doctors, medicineReminders, notificationTokens, hospitals, appointments, prescriptions,
+  users, patients, doctors, medicineReminders,
   type InsertPrescription,
   type InsertMedicineReminder,
 } from "@shared/schema";
-import { db, pool } from "./db";
-import { eq, and, like } from "drizzle-orm";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { sendAppointmentBookedEmails, sendAppointmentStatusEmail, sendVideoCallLinkEmail } from "./email";
-import { saveDeviceToken, sendReminder } from "./services/notificationService";
-import { sendSmsReminder, sendSms, isSmsReady } from "./services/smsService";
-import { WebSocketServer, WebSocket } from "ws";
-
-let wss: WebSocketServer | undefined;
-
-export function broadcastUpdate(data: { type: string; payload?: any }) {
-  if (!wss) return;
-  const msg = JSON.stringify(data);
-  for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(msg);
-    }
-  }
-}
-
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Setup WebSocket Server
-  wss = new WebSocketServer({ noServer: true });
-
-  httpServer.on("upgrade", (request, socket, head) => {
-    const pathname = new URL(request.url || "", `http://${request.headers.host}`).pathname;
-    if (pathname === "/ws") {
-      wss!.handleUpgrade(request, socket, head, (ws) => {
-        wss!.emit("connection", ws, request);
-      });
-    }
-  });
-
   // Setup Authentication (Passport + Session)
   setupAuth(app);
 
@@ -75,37 +45,6 @@ export async function registerRoutes(
   app.get(api.hospitals.list.path, async (req, res) => {
     const hospitals = await storage.getHospitals();
     res.json(hospitals);
-  });
-
-  // === Nearby Hospitals (OpenStreetMap / Overpass) ===
-  // IMPORTANT: This must be registered BEFORE any dynamic :id route
-  app.get("/api/hospitals/nearby", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    const latRaw = req.query.lat;
-    const lngRaw = req.query.lng;
-    const radiusRaw = req.query.radius;
-
-    const lat = parseFloat(latRaw as string);
-    const lng = parseFloat(lngRaw as string);
-    const radius = parseFloat(radiusRaw as string) || 5;
-
-    // Validate coordinates
-    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      return res.status(400).json({ message: "Invalid latitude or longitude." });
-    }
-
-    // Clamp radius to sensible range (1–50 km)
-    const clampedRadius = Math.min(Math.max(radius, 1), 50);
-
-    try {
-      const hospitals = await fetchNearbyHospitals(lat, lng, clampedRadius);
-      return res.json({ hospitals, count: hospitals.length });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to fetch nearby hospitals.";
-      console.error("[Nearby Hospitals] Error:", message);
-      return res.status(503).json({ message });
-    }
   });
 
   // === Appointments ===
@@ -141,24 +80,7 @@ export async function registerRoutes(
         patientId: patient.id
       });
 
-      // ── PRE-CHECK: block duplicate slot before insert ─────────────────────
-      const { rows: conflictRows } = await pool.query(
-        `SELECT id FROM appointments 
-         WHERE doctor_id = $1 AND date = $2 
-         AND status = 'confirmed' 
-         LIMIT 1`,
-        [input.doctorId, new Date(input.date)]
-      );
-
-      if (conflictRows.length > 0) {
-        return res.status(409).json({ message: "This time slot is already booked. Please choose a different slot." });
-      }
-      // ─────────────────────────────────────────────────────────────────────
-
       const appointment = await storage.createAppointment(input);
-
-      // Broadcast real-time update
-      broadcastUpdate({ type: "APPOINTMENT_UPDATED", payload: { doctorId: appointment.doctorId } });
 
       // Send emails in background (don't block the response)
       setImmediate(async () => {
@@ -185,17 +107,12 @@ export async function registerRoutes(
       });
 
       res.status(201).json(appointment);
-    } catch (err: any) {
+    } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
+         res.status(400).json({ message: err.errors[0].message });
+      } else {
+        res.status(500).json({ message: "Internal Server Error" });
       }
-      // PostgreSQL unique constraint — slot already booked (Drizzle wraps the original PG error)
-      const pgCode = err?.code || err?.cause?.code || err?.original?.code;
-      if (pgCode === "23505" || err?.message?.includes("appointments_doctor_date_unique")) {
-        return res.status(409).json({ message: "This time slot is already booked. Please choose a different slot." });
-      }
-      console.error("[Appointments] Create error:", err?.message ?? err);
-      res.status(500).json({ message: "Internal Server Error" });
     }
   });
 
@@ -228,29 +145,7 @@ export async function registerRoutes(
     }
 
     const updated = await storage.updateAppointmentStatus(appointmentId, status);
-
-    // If doctor confirmed this appointment, automatically reject other pending requests for the same slot
-    if (status === "confirmed") {
-      try {
-        await db
-          .update(appointments)
-          .set({ status: "rejected" })
-          .where(
-            and(
-              eq(appointments.doctorId, updated.doctorId),
-              eq(appointments.date, updated.date),
-              eq(appointments.status, "pending")
-            )
-          );
-      } catch (err) {
-        console.error("[Appointments] Failed to reject competing appointments:", err);
-      }
-    }
-
     res.json(updated);
-
-    // Broadcast real-time update
-    broadcastUpdate({ type: "APPOINTMENT_UPDATED", payload: { doctorId: updated.doctorId } });
 
     // Send status change email in background
     setImmediate(async () => {
@@ -383,376 +278,17 @@ export async function registerRoutes(
      }
   });
 
-  // === AI Features ===
+  // === AI Chat ===
   app.post("/api/ai/chat", async (req, res) => {
     try {
       const { message } = req.body;
-      const reply = await answerMedicalQuestion(message);
+
+      const reply = await askAI(message);
+
       res.json({ reply });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "AI request failed" });
-    }
-  });
-
-  // Legacy: plain symptom analysis (text only)
-  app.post("/api/ai/symptoms", async (req, res) => {
-    try {
-      const { symptoms } = req.body;
-      if (!symptoms || typeof symptoms !== 'string') {
-        return res.status(400).json({ error: "Symptoms description is required" });
-      }
-      const analysis = await analyzeSymptoms(symptoms);
-      res.json({ analysis });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Symptom analysis failed" });
-    }
-  });
-
-  // NEW: Full AI → Doctor flow — returns analysis + specialist + matching doctors
-function mapSpecialistToDbSpecialization(specialist: string): string {
-  const spec = specialist.toLowerCase().trim();
-  if (spec.includes("cardio")) return "Cardiology";
-  if (spec.includes("neuro")) return "Neurology";
-  if (spec.includes("ortho")) return "Orthopedics";
-  if (spec.includes("general") || spec.includes("physician") || spec.includes("internal") || spec.includes("medicine")) return "General Medicine";
-  if (spec.includes("pulmono")) return "Pulmonology";
-  if (spec.includes("gastro")) return "Gastroenterology";
-  if (spec.includes("dermato") || spec.includes("skin")) return "Dermatology";
-  if (spec.includes("pediatr") || spec.includes("child")) return "Pediatrics";
-  return "General Medicine"; // default fallback
-}
-
-  app.post("/api/ai/analyze-symptoms", async (req, res) => {
-    try {
-      const { symptoms } = req.body;
-      if (!symptoms || typeof symptoms !== "string") {
-        return res.status(400).json({ error: "Symptoms description is required" });
-      }
-
-      // Auto-detect language from symptoms text
-      const detectedLanguage = detectLanguage(symptoms);
-
-      // Step 1: AI analysis with detected language
-      const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptoms, detectedLanguage);
-
-      // Step 2: Find matching doctors from DB by specialization
-      const dbSpecialization = mapSpecialistToDbSpecialization(recommendedSpecialist);
-      const matchedDoctors = await storage.getDoctors({ specialization: dbSpecialization });
-
-      // Step 3: Format doctor list with hospital info
-      const doctorList = matchedDoctors.map(d => ({
-        id: d.id,
-        name: d.user.name,
-        specialization: d.specialization,
-        experience: d.experience,
-        consultationFee: d.consultationFee,
-        hospital: d.hospital?.name || "Independent",
-        hospitalId: d.hospitalId,
-        availability: d.availability || [],
-        onlineEnabled: d.onlineEnabled,
-        offlineEnabled: d.offlineEnabled,
-        videoEnabled: d.videoEnabled,
-        onlineFee: d.onlineFee,
-        offlineFee: d.offlineFee,
-        videoFee: d.videoFee,
-      }));
-
-      res.json({
-        analysis,
-        recommendedSpecialist,
-        risk,
-        urgency,
-        doctors: doctorList,
-        language: detectedLanguage,
-      });
-    } catch (err: any) {
-      console.error("[AI Symptoms] Error:", err?.message ?? err);
-      res.status(500).json({ error: "Symptom analysis failed" });
-    }
-  });
-
-  app.post("/api/ai/voice-assistant/chat", async (req, res) => {
-    try {
-      const { message, history, language } = req.body;
-      if (!message || typeof message !== "string") {
-        return res.status(400).json({ error: "Message is required" });
-      }
-
-      // Use provided language or auto-detect from message
-      const lang: "en" | "hi" = (language === "hi" || language === "en") ? language : detectLanguage(message);
-      const aiResponse = await chatMedicalAssistant(message, history || [], lang);
-
-      let analysisResult = null;
-      if (aiResponse.hasSymptomAnalysis && aiResponse.symptomsCollected) {
-        const symptomsText = aiResponse.symptomsCollected;
-        const { analysis, recommendedSpecialist, risk, urgency } = await analyzeSymptomsFull(symptomsText, lang);
-
-        const dbSpecialization = mapSpecialistToDbSpecialization(recommendedSpecialist);
-        const matchedDoctors = await storage.getDoctors({ specialization: dbSpecialization });
-
-        const doctorList = matchedDoctors.map(d => ({
-          id: d.id,
-          name: d.user.name,
-          specialization: d.specialization,
-          experience: d.experience,
-          consultationFee: d.consultationFee,
-          hospital: d.hospital?.name || "Independent",
-          hospitalId: d.hospitalId,
-          availability: d.availability || [],
-          onlineEnabled: d.onlineEnabled,
-          offlineEnabled: d.offlineEnabled,
-          videoEnabled: d.videoEnabled,
-          onlineFee: d.onlineFee,
-          offlineFee: d.offlineFee,
-          videoFee: d.videoFee,
-        }));
-
-        analysisResult = {
-          symptoms: symptomsText,
-          analysis,
-          recommendedSpecialist,
-          risk,
-          urgency,
-          doctors: doctorList,
-        };
-      }
-
-      res.json({
-        reply: aiResponse.reply,
-        analysis: analysisResult,
-        language: lang,
-      });
-    } catch (err: any) {
-      console.error("[Voice Assistant Chat Error]:", err?.message ?? err);
-      res.status(500).json({ error: "Voice assistant request failed" });
-    }
-  });
-
-  app.post("/api/ai/recommend-medicines", async (req, res) => {
-    try {
-      const { condition } = req.body;
-      if (!condition || typeof condition !== 'string') {
-        return res.status(400).json({ error: "Condition is required" });
-      }
-      // Auto-detect language from condition text
-      const detectedLanguage = detectLanguage(condition);
-      const recommendation = await recommendMedicines(condition, detectedLanguage);
-      res.json({ recommendation, language: detectedLanguage });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Medicine recommendation failed" });
-    }
-  });
-
-  app.post("/api/ai/diet-plan", async (req, res) => {
-    try {
-      const { condition, age, weight, activityLevel, foodPreference } = req.body;
-      if (!condition || typeof condition !== "string") {
-        return res.status(400).json({ error: "Condition is required" });
-      }
-      // Auto-detect language from condition text
-      const detectedLanguage = detectLanguage(condition);
-      const plan = await generateDietPlan({
-        condition:      condition,
-        age:            age || "Not specified",
-        weight:         weight || "Not specified",
-        activityLevel:  activityLevel || "Moderate",
-        foodPreference: foodPreference || "No preference",
-        language:       detectedLanguage,
-      });
-      if (!plan) {
-        return res.status(500).json({ error: "AI returned empty plan" });
-      }
-      res.json({ plan, language: detectedLanguage });
-    } catch (err: any) {
-      console.error("[Diet] Route error:", err?.message ?? err);
-      res.status(500).json({ error: err?.message || "Diet plan generation failed" });
-    }
-  });
-
-  // === Medicine Reminders ===
-  app.get("/api/medicine-reminders", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const reminders = await db.select()
-        .from(medicineReminders)
-        .where(eq(medicineReminders.userId, req.user!.id));
-      res.json(reminders);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to fetch reminders" });
-    }
-  });
-
-  app.post("/api/medicine-reminders", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const input = insertMedicineReminderSchema.parse({
-        ...req.body,
-        userId: req.user!.id
-      });
-      const [reminder] = await db.insert(medicineReminders).values(input).returning();
-
-      // Send immediate SMS confirmation to patient's registered phone number
-      setImmediate(async () => {
-        try {
-          const result = await db
-            .select({ contact: patients.contact, name: users.name })
-            .from(patients)
-            .innerJoin(users, eq(patients.userId, users.id))
-            .where(eq(patients.userId, req.user!.id))
-            .limit(1);
-
-          if (result.length && result[0].contact?.trim()) {
-            const { contact, name } = result[0];
-            await sendSms(
-              contact,
-              `✅ MedCare Reminder Confirmed!\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `Hello ${name},\n\n` +
-              `Your medicine reminder has been successfully set on MedCare.\n\n` +
-              `📋 Reminder Details:\n` +
-              `   • Medicine  : ${reminder.medicineName}\n` +
-              `   • Dosage    : ${reminder.dosage}\n` +
-              `   • Time      : ${reminder.time} every day\n` +
-              `   • Frequency : ${reminder.frequency}\n` +
-              `   • Start Date: ${new Date(reminder.startDate).toDateString()}\n` +
-              (reminder.endDate ? `   • End Date  : ${new Date(reminder.endDate).toDateString()}\n` : `   • End Date  : No end date (ongoing)\n`) +
-              `\n📌 What to expect:\n` +
-              `   You will receive an SMS reminder at ${reminder.time}\n` +
-              `   every day as a prompt to take your medicine.\n\n` +
-              `⚠️ Important Reminders:\n` +
-              `   • Always take the exact prescribed dose\n` +
-              `   • Do not skip doses without doctor advice\n` +
-              `   • Store medicine as instructed on the label\n` +
-              `   • Contact your doctor for any side effects\n\n` +
-              `Stay consistent & healthy! 💪\n` +
-              `━━━━━━━━━━━━━━━━━━━━━━\n` +
-              `— MedCare Health System`
-            );
-            console.log(`[SMS] Reminder confirmation sent to ${contact}`);
-          }
-        } catch (smsErr) {
-          console.error("[SMS] Failed to send reminder confirmation:", smsErr);
-        }
-      });
-
-      res.status(201).json(reminder);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        res.status(400).json({ error: err.errors[0].message });
-      } else {
-        console.error(err);
-        res.status(500).json({ error: "Failed to create reminder" });
-      }
-    }
-  });
-
-  app.patch("/api/medicine-reminders/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const id = parseInt(req.params.id);
-      const updates = req.body;
-      
-      // Ensure user owns this reminder
-      const existing = await db.select()
-        .from(medicineReminders)
-        .where(eq(medicineReminders.id, id))
-        .limit(1);
-      
-      if (!existing.length || existing[0].userId !== req.user!.id) {
-        return res.sendStatus(404);
-      }
-
-      const [updated] = await db.update(medicineReminders)
-        .set(updates)
-        .where(eq(medicineReminders.id, id))
-        .returning();
-      
-      res.json(updated);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to update reminder" });
-    }
-  });
-
-  app.delete("/api/medicine-reminders/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const id = parseInt(req.params.id);
-      const existing = await db.select()
-        .from(medicineReminders)
-        .where(eq(medicineReminders.id, id))
-        .limit(1);
-      if (!existing.length || existing[0].userId !== req.user!.id) return res.sendStatus(404);
-      await db.delete(medicineReminders).where(eq(medicineReminders.id, id));
-      res.json({ success: true });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to delete reminder" });
-    }
-  });
-
-  // === Doctor Booked Slots (public — no auth needed) ===
-  app.get("/api/doctors/:id/booked-slots", async (req, res) => {
-    try {
-      const doctorId = parseInt(req.params.id);
-      if (isNaN(doctorId)) return res.status(400).json({ error: "Invalid doctor id" });
-
-      // Direct DB query — fast, no joins needed
-      const rows = await db
-        .select({ date: appointments.date })
-        .from(appointments)
-        .where(
-          and(
-            eq(appointments.doctorId, doctorId),
-            eq(appointments.status, "confirmed")
-          )
-        );
-
-      const bookedSlots = rows
-        .filter(r => r.date)
-        .map(r => new Date(r.date).toISOString());
-
-      res.json({ bookedSlots });
-    } catch (err) {
-      console.error("[Booked Slots] Error:", err);
-      res.status(500).json({ error: "Failed to fetch booked slots" });
-    }
-  });
-  app.post("/api/notifications/token", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const { token } = req.body;
-      if (!token || typeof token !== "string") {
-        return res.status(400).json({ error: "FCM token is required" });
-      }
-      await saveDeviceToken(req.user!.id, token);
-      res.json({ success: true });
-    } catch (err) {
-      console.error("[FCM] Token save error:", err);
-      res.status(500).json({ error: "Failed to save token" });
-    }
-  });
-
-  // === FCM Test Notification ===
-  app.post("/api/notifications/test", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      await Promise.allSettled([
-        sendReminder(req.user!.id, "Metformin (Test)", "500mg"),
-        sendSmsReminder(req.user!.id, "Metformin (Test)", "500mg"),
-      ]);
-      res.json({
-        success: true,
-        message: "Test notification sent via FCM push + SMS!",
-        smsEnabled: isSmsReady(),
-      });
-    } catch (err) {
-      console.error("[FCM] Test notification error:", err);
-      res.status(500).json({ error: "Failed to send test notification" });
     }
   });
 
@@ -806,36 +342,15 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
       } else if (user.role === "doctor") {
         const doctor = await storage.getDoctorByUserId(user.id);
         if (doctor) {
-          const { 
-            specialization, 
-            experience, 
-            consultationFee, 
-            availability,
-            qualification,
-            onlineFee,
-            offlineFee,
-            videoFee,
-            onlineEnabled,
-            offlineEnabled,
-            videoEnabled
-          } = profileFields;
+          const { specialization, experience, consultationFee, availability } = profileFields;
           await db.update(doctors)
             .set({
               ...(specialization && { specialization }),
               ...(experience !== undefined && { experience: parseInt(experience) }),
               ...(consultationFee !== undefined && { consultationFee: parseInt(consultationFee) }),
-              ...(qualification && { qualification }),
-              ...(onlineFee !== undefined && { onlineFee: parseInt(onlineFee) }),
-              ...(offlineFee !== undefined && { offlineFee: parseInt(offlineFee) }),
-              ...(videoFee !== undefined && { videoFee: parseInt(videoFee) }),
-              ...(onlineEnabled !== undefined && { onlineEnabled: onlineEnabled === true || onlineEnabled === 'true' }),
-              ...(offlineEnabled !== undefined && { offlineEnabled: offlineEnabled === true || offlineEnabled === 'true' }),
-              ...(videoEnabled !== undefined && { videoEnabled: videoEnabled === true || videoEnabled === 'true' }),
               ...(availability && { availability }),
             })
             .where(eq(doctors.userId, user.id));
-
-          broadcastUpdate({ type: "AVAILABILITY_UPDATED", payload: { doctorId: doctor.id } });
         }
       }
 
@@ -855,53 +370,6 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
     }
   });
 
-  app.put("/api/doctors/profile", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const user = req.user!;
-    if (user.role !== "doctor") return res.status(403).json({ error: "Only doctors can update this profile" });
-
-    try {
-      const {
-        specialization,
-        experience,
-        consultationFee,
-        availability,
-        qualification,
-        onlineFee,
-        offlineFee,
-        videoFee,
-        onlineEnabled,
-        offlineEnabled,
-        videoEnabled
-      } = req.body;
-
-      await db.update(doctors)
-        .set({
-          ...(specialization && { specialization }),
-          ...(experience !== undefined && { experience: parseInt(experience) }),
-          ...(consultationFee !== undefined && { consultationFee: parseInt(consultationFee) }),
-          ...(qualification && { qualification }),
-          ...(onlineFee !== undefined && { onlineFee: parseInt(onlineFee) }),
-          ...(offlineFee !== undefined && { offlineFee: parseInt(offlineFee) }),
-          ...(videoFee !== undefined && { videoFee: parseInt(videoFee) }),
-          ...(onlineEnabled !== undefined && { onlineEnabled: onlineEnabled === true || onlineEnabled === 'true' }),
-          ...(offlineEnabled !== undefined && { offlineEnabled: offlineEnabled === true || offlineEnabled === 'true' }),
-          ...(videoEnabled !== undefined && { videoEnabled: videoEnabled === true || videoEnabled === 'true' }),
-          ...(availability && { availability }),
-        })
-        .where(eq(doctors.userId, user.id));
-
-      const doctor = await storage.getDoctorByUserId(user.id);
-      if (doctor) {
-        broadcastUpdate({ type: "AVAILABILITY_UPDATED", payload: { doctorId: doctor.id } });
-      }
-      const hospital = doctor?.hospitalId ? await storage.getHospital(doctor.hospitalId) : null;
-      return res.json({ user, profile: doctor ? { ...doctor, hospital } : null });
-    } catch (err) {
-      return res.status(500).json({ message: "Failed to update doctor profile" });
-    }
-  });
-
   // Seed Data
   await seedDatabase();
 
@@ -909,126 +377,86 @@ function mapSpecialistToDbSpecialization(specialist: string): string {
 }
 
 async function seedDatabase() {
-  console.log("Checking database seeding status...");
   const existingHospitals = await storage.getHospitals();
+  if (existingHospitals.length > 0) return;
+
+  console.log("Seeding database...");
   const hashedPassword = await hashPassword("password123");
 
-  if (existingHospitals.length === 0) {
-    console.log("Seeding hospitals...");
-    // ─── Hospitals ──────────────────────────────────────────────────────
-    const hApollo = await storage.createHospital({
-      name: "Apollo Hospital",
-      location: "Jubilee Hills, Hyderabad",
-      contact: "040-23607777",
-      specializations: ["Cardiology", "Neurology", "Orthopedics", "General Medicine", "Pulmonology"],
-      imageUrl: "https://images.unsplash.com/photo-1587351021759-3e566b9af9ef?auto=format&fit=crop&q=80&w=2000"
-    });
+  // Create Hospitals
+  const h1 = await storage.createHospital({
+    name: "City General Hospital",
+    location: "Downtown",
+    contact: "555-0123",
+    specializations: ["Cardiology", "Neurology", "General Surgery"],
+    imageUrl: "https://images.unsplash.com/photo-1587351021759-3e566b9af9ef?auto=format&fit=crop&q=80&w=2000"
+  });
 
-    const hFortis = await storage.createHospital({
-      name: "Fortis Hospital",
-      location: "Bannerghatta Road, Bangalore",
-      contact: "080-66214444",
-      specializations: ["Cardiology", "Gastroenterology", "Dermatology", "Pediatrics"],
-      imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=2000"
-    });
+  const h2 = await storage.createHospital({
+    name: "Sunrise Pediatrics",
+    location: "Westside",
+    contact: "555-0199",
+    specializations: ["Pediatrics", "Vaccination"],
+    imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=2000"
+  });
 
-    const hMax = await storage.createHospital({
-      name: "Max Super Speciality Hospital",
-      location: "Saket, New Delhi",
-      contact: "011-26515050",
-      specializations: ["Neurology", "Orthopedics", "General Medicine", "Pulmonology"],
-      imageUrl: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&q=80&w=2000"
-    });
+  // Create Admin
+  await storage.createUser({
+    username: "admin",
+    password: hashedPassword,
+    role: "admin",
+    name: "Admin User",
+    email: "admin@health.com"
+  });
 
-    const hAIIMS = await storage.createHospital({
-      name: "AIIMS Hospital",
-      location: "Ansari Nagar, New Delhi",
-      contact: "011-26588500",
-      specializations: ["Cardiology", "Neurology", "General Medicine", "Dermatology", "Pediatrics"],
-      imageUrl: "https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&q=80&w=2000"
-    });
+  // Create Doctors
+  const d1User = await storage.createUser({
+    username: "doctor1",
+    password: hashedPassword,
+    role: "doctor",
+    name: "Dr. Sarah Smith",
+    email: "sarah@citygeneral.com"
+  });
+  await storage.createDoctor({
+    userId: d1User.id,
+    specialization: "Cardiology",
+    hospitalId: h1.id,
+    experience: 10,
+    consultationFee: 150,
+    availability: ["Mon 09:00-17:00", "Wed 09:00-17:00", "Fri 09:00-13:00"]
+  });
 
-    const hMedanta = await storage.createHospital({
-      name: "Medanta Hospital",
-      location: "Sector 38, Gurugram",
-      contact: "0124-4141414",
-      specializations: ["Cardiology", "Gastroenterology", "Orthopedics", "Pulmonology"],
-      imageUrl: "https://images.unsplash.com/photo-1551190822-a9ce113ac100?auto=format&fit=crop&q=80&w=2000"
-    });
-  }
+  const d2User = await storage.createUser({
+    username: "doctor2",
+    password: hashedPassword,
+    role: "doctor",
+    name: "Dr. John Doe",
+    email: "john@sunrise.com"
+  });
+  await storage.createDoctor({
+    userId: d2User.id,
+    specialization: "Pediatrics",
+    hospitalId: h2.id,
+    experience: 5,
+    consultationFee: 100,
+    availability: ["Tue 09:00-17:00", "Thu 09:00-17:00"]
+  });
 
-  // Seed Admin if not exists
-  const adminUser = await storage.getUserByUsername("admin");
-  if (!adminUser) {
-    console.log("Seeding admin user...");
-    await storage.createUser({
-      username: "admin",
-      password: hashedPassword,
-      role: "admin",
-      name: "Admin User",
-      email: "admin@health.com"
-    });
-  }
+  // Create Patients
+  const p1User = await storage.createUser({
+    username: "patient1",
+    password: hashedPassword,
+    role: "patient",
+    name: "Alice Johnson",
+    email: "alice@example.com"
+  });
+  await storage.createPatient({
+    userId: p1User.id,
+    age: 30,
+    gender: "Female",
+    contact: "555-1001",
+    medicalHistory: "None"
+  });
 
-  // Clean up pre-seeded mock doctors (usernames starting with "doctor")
-  try {
-    const doctorsToDelete = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.role, "doctor"), like(users.username, "doctor%")));
-
-    if (doctorsToDelete.length > 0) {
-      console.log(`Cleaning up ${doctorsToDelete.length} pre-seeded mock doctors...`);
-      for (const dUser of doctorsToDelete) {
-        const docProfile = await storage.getDoctorByUserId(dUser.id);
-        if (docProfile) {
-          // Delete prescriptions linked to this doctor's appointments
-          const apts = await db.select({ id: appointments.id }).from(appointments).where(eq(appointments.doctorId, docProfile.id));
-          for (const apt of apts) {
-            await db.delete(prescriptions).where(eq(prescriptions.appointmentId, apt.id));
-          }
-          // Delete appointments
-          await db.delete(appointments).where(eq(appointments.doctorId, docProfile.id));
-          // Delete doctor profile
-          await db.delete(doctors).where(eq(doctors.id, docProfile.id));
-        }
-        // Delete user
-        await db.delete(users).where(eq(users.id, dUser.id));
-      }
-    }
-  } catch (err) {
-    console.error("Failed to clean up pre-seeded mock doctors:", err);
-  }
-
-  // Clean up pre-seeded mock patient ("patient1")
-  try {
-    const patientToDelete = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.username, "patient1"));
-
-    if (patientToDelete.length > 0) {
-      console.log("Cleaning up pre-seeded mock patient...");
-      for (const pUser of patientToDelete) {
-        const patProfile = await storage.getPatientByUserId(pUser.id);
-        if (patProfile) {
-          // Delete prescriptions linked to this patient's appointments
-          const apts = await db.select({ id: appointments.id }).from(appointments).where(eq(appointments.patientId, patProfile.id));
-          for (const apt of apts) {
-            await db.delete(prescriptions).where(eq(prescriptions.appointmentId, apt.id));
-          }
-          // Delete appointments
-          await db.delete(appointments).where(eq(appointments.patientId, patProfile.id));
-          // Delete patient profile
-          await db.delete(patients).where(eq(patients.id, patProfile.id));
-        }
-        // Delete user
-        await db.delete(users).where(eq(users.id, pUser.id));
-      }
-    }
-  } catch (err) {
-    console.error("Failed to clean up pre-seeded mock patient:", err);
-  }
-
-  console.log("Database seeding check complete.");
+  console.log("Database seeded successfully!");
 }

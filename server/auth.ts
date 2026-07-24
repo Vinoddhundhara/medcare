@@ -24,7 +24,7 @@ async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
-  const SESSION_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  const SESSION_MAX_AGE = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
 
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "healthcare_secret_key",
@@ -32,11 +32,11 @@ export function setupAuth(app: Express) {
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      maxAge: SESSION_MAX_AGE,   // cookie expires after 24 hours
+      maxAge: SESSION_MAX_AGE,   // cookie expires after 12 hours
       httpOnly: true,            // not accessible via JS
       secure: app.get("env") === "production", // HTTPS only in production
     },
-    rolling: false,              // do NOT reset timer on activity — hard 24h limit
+    rolling: false,              // do NOT reset timer on activity — hard 12h limit
   };
 
   if (app.get("env") === "production") {
@@ -106,13 +106,24 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    // Store login timestamp in session for client-side expiry tracking
-    (req.session as any).loginTime = Date.now();
-    res.status(200).json({
-      ...(req.user as any),
-      sessionExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h from now
-    });
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: "Invalid username or password" });
+
+      if (user.role === "hospital_admin") {
+        return res.status(403).json({ message: "Hospital accounts cannot log in through the Patient/Doctor login portal. Please use the Hospital tab." });
+      }
+
+      req.login(user, (loginErr) => {
+        if (loginErr) return next(loginErr);
+        (req.session as any).loginTime = Date.now();
+        return res.status(200).json({
+          ...user,
+          sessionExpiresAt: Date.now() + 12 * 60 * 60 * 1000, // 12h from now
+        });
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -124,10 +135,13 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role === "hospital_admin") return res.sendStatus(401);
+
     const loginTime = (req.session as any).loginTime || Date.now();
     res.json({
-      ...(req.user as any),
-      sessionExpiresAt: loginTime + 24 * 60 * 60 * 1000,
+      ...user,
+      sessionExpiresAt: loginTime + 12 * 60 * 60 * 1000,
     });
   });
 }

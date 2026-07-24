@@ -271,7 +271,7 @@ export async function fetchNearbyHospitals(
   const cacheKey = makeCacheKey(userLat, userLng, radiusKm);
   const cached = getFromCache(cacheKey);
   if (cached) {
-    console.log(`[Overpass] Cache hit for key: ${cacheKey}`);
+    // cache hit – silent
     return cached;
   }
 
@@ -283,7 +283,7 @@ export async function fetchNearbyHospitals(
 
   for (const serverUrl of OVERPASS_SERVERS) {
     try {
-      console.log(`[Overpass] Trying server: ${serverUrl}`);
+      // trying server – silent
 
       const response = await fetchWithTimeout(
         serverUrl,
@@ -330,7 +330,7 @@ export async function fetchNearbyHospitals(
       const deduped = deduplicateHospitals(hospitals);
       deduped.sort((a, b) => a.distance - b.distance);
 
-      console.log(`[Overpass] Found ${hospitals.length} raw → ${deduped.length} unique hospitals via ${serverUrl}`);
+      // result logged silently
 
       setInCache(cacheKey, deduped);
       return deduped;
