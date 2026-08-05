@@ -125,7 +125,7 @@ export const doctorAvailability = pgTable("doctor_availability", {
   endTime: text("end_time").notNull(),
   breakStart: text("break_start"),
   breakEnd: text("break_end"),
-  slotDuration: integer("slot_duration").default(30).notNull(), // minutes
+  slotDuration: integer("slot_duration").default(60).notNull(), // minutes
   isAvailable: boolean("is_available").default(true).notNull(),
   emergencyAvailable: boolean("emergency_available").default(false).notNull(),
   leaveDates: jsonb("leave_dates").$type<string[]>().default([]),

@@ -7,17 +7,25 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL, ensure the database is provisioned");
 }
 
-// Add SSL params to URL if not present
-const dbUrl = process.env.DATABASE_URL.includes("sslmode=")
-  ? process.env.DATABASE_URL
-  : process.env.DATABASE_URL + "?sslmode=require&connect_timeout=30";
+const dbUrl = process.env.DATABASE_URL;
+
+// Only add SSL params for remote (non-local) databases
+const isLocalDb =
+  dbUrl.includes("localhost") || dbUrl.includes("127.0.0.1");
+
+const finalUrl =
+  isLocalDb
+    ? dbUrl
+    : dbUrl.includes("sslmode=")
+    ? dbUrl
+    : dbUrl + "?sslmode=require&connect_timeout=30";
 
 export default defineConfig({
   out: "./migrations",
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: dbUrl,
-    ssl: "require",
+    url: finalUrl,
+    ...(isLocalDb ? {} : { ssl: "require" }),
   },
 });

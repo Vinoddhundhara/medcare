@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
+import DoctorDashboard from "@/pages/DoctorDashboard";
 import FindDoctors from "@/pages/FindDoctors";
 import FindHospitals from "@/pages/FindHospitals";
 import HospitalDetails from "@/pages/HospitalDetails";
@@ -26,80 +27,66 @@ import { MedicineReminderScheduler } from "@/components/MedicineReminderSchedule
 import { FCMInitializer } from "@/components/FCMInitializer";
 import { SessionExpiryWatcher } from "@/components/SessionExpiryWatcher";
 import { RealtimeWatcher } from "@/components/RealtimeWatcher";
-
-// Hospital pages
-import HospitalLogin      from "@/pages/hospital/HospitalLogin";
-import HospitalRegister   from "@/pages/hospital/HospitalRegister";
-import HospitalDashboard  from "@/pages/hospital/HospitalDashboard";
-import HospitalDoctors    from "@/pages/hospital/HospitalDoctors";
-import HospitalPatients   from "@/pages/hospital/HospitalPatients";
-import HospitalAppointments from "@/pages/hospital/HospitalAppointments";
-import HospitalPayments   from "@/pages/hospital/HospitalPayments";
-import HospitalAnalytics  from "@/pages/hospital/HospitalAnalytics";
-import HospitalProfile    from "@/pages/hospital/HospitalProfile";
-import HospitalSettings   from "@/pages/hospital/HospitalSettings";
-import HospitalNotifications from "@/pages/hospital/HospitalNotifications";
-
 import { AIAssistantProvider } from "@/context/AIAssistantContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { useAuth } from "@/hooks/use-auth";
+
+// Hospital pages
+import HospitalLogin         from "@/pages/hospital/HospitalLogin";
+import HospitalRegister      from "@/pages/hospital/HospitalRegister";
+import HospitalDashboard     from "@/pages/hospital/HospitalDashboard";
+import HospitalDoctors       from "@/pages/hospital/HospitalDoctors";
+import HospitalPatients      from "@/pages/hospital/HospitalPatients";
+import HospitalAppointments  from "@/pages/hospital/HospitalAppointments";
+import HospitalPayments      from "@/pages/hospital/HospitalPayments";
+import HospitalAnalytics     from "@/pages/hospital/HospitalAnalytics";
+import HospitalProfile       from "@/pages/hospital/HospitalProfile";
+import HospitalSettings      from "@/pages/hospital/HospitalSettings";
+import HospitalNotifications from "@/pages/hospital/HospitalNotifications";
+
+// Route doctor to their own dashboard, patients to the patient dashboard
+function DashboardRouter() {
+  const { user } = useAuth();
+  if (user?.role === "doctor") return <DoctorDashboard />;
+  return <Dashboard />;
+}
 
 // ── Hospital admin sub-app ─────────────────────────────────────────────────
 function HospitalRouter() {
   return (
     <Switch>
-      {/* Redirect old hospital auth URLs to unified login/register */}
       <Route path="/hospital/login">
         <Redirect to="/login" />
       </Route>
       <Route path="/hospital/register">
         <Redirect to="/register?role=hospital" />
       </Route>
-
-      {/* Protected hospital dashboard routes wrapped in HospitalLayout */}
       <Route path="/hospital/dashboard">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalDashboard} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalDashboard} /></HospitalLayout>
       </Route>
       <Route path="/hospital/doctors">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalDoctors} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalDoctors} /></HospitalLayout>
       </Route>
       <Route path="/hospital/patients">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalPatients} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalPatients} /></HospitalLayout>
       </Route>
       <Route path="/hospital/appointments">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalAppointments} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalAppointments} /></HospitalLayout>
       </Route>
       <Route path="/hospital/payments">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalPayments} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalPayments} /></HospitalLayout>
       </Route>
       <Route path="/hospital/analytics">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalAnalytics} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalAnalytics} /></HospitalLayout>
       </Route>
       <Route path="/hospital/profile">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalProfile} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalProfile} /></HospitalLayout>
       </Route>
       <Route path="/hospital/settings">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalSettings} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalSettings} /></HospitalLayout>
       </Route>
       <Route path="/hospital/notifications">
-        <HospitalLayout>
-          <HospitalProtectedRoute component={HospitalNotifications} />
-        </HospitalLayout>
+        <HospitalLayout><HospitalProtectedRoute component={HospitalNotifications} /></HospitalLayout>
       </Route>
     </Switch>
   );
@@ -110,14 +97,12 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        {/* Public Routes */}
         <Route path="/" component={Home} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
 
-        {/* Protected Routes */}
         <Route path="/dashboard">
-          <ProtectedRoute component={Dashboard} />
+          <ProtectedRoute component={DashboardRouter} />
         </Route>
         <Route path="/doctors">
           <ProtectedRoute component={FindDoctors} allowedRoles={["patient"]} />
@@ -150,7 +135,6 @@ function Router() {
           <ProtectedRoute component={NearbyHospitals} allowedRoles={["patient"]} />
         </Route>
 
-        {/* Fallback */}
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -168,11 +152,9 @@ function App() {
             <MedicineReminderScheduler />
             <SessionExpiryWatcher />
             <Switch>
-              {/* All /hospital/* routes go to the hospital sub-app */}
               <Route path="/hospital/:rest*">
                 <HospitalRouter />
               </Route>
-              {/* Everything else goes to the main app */}
               <Route>
                 <Router />
               </Route>

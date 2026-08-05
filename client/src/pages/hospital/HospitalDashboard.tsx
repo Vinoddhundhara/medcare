@@ -58,6 +58,7 @@ export default function HospitalDashboard() {
     { title: "Total Revenue",       value: `₹${(data?.revenue ?? 0).toLocaleString()}`, icon: DollarSign, color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40", sub: "Paid appointments" },
     { title: "Active Doctors",      value: data?.doctorCount ?? 0,    icon: Stethoscope, color: "bg-violet-100 text-violet-600 dark:bg-violet-900/40", sub: "Hospital doctors" },
     { title: "Registered Patients", value: data?.patientCount ?? 0,   icon: Users,       color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40", sub: "Total patients" },
+    { title: "Total Appointments",  value: data?.totalAppointments ?? 0, icon: Calendar, color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40", sub: `${data?.completed ?? 0} completed` },
   ];
 
   return (
@@ -71,7 +72,7 @@ export default function HospitalDashboard() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map(s => <StatCard key={s.title} {...s} />)}
       </div>
 

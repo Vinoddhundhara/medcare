@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupAuth, hashPassword } from "./auth";
+import { setupAuth } from "./auth";
 import { setupHospitalAuth } from "./hospitalAuth";
 import { registerHospitalRoutes } from "./hospitalRoutes";
 import { askAI, analyzeSymptoms, answerMedicalQuestion } from "./ai";
@@ -42,6 +42,65 @@ export async function registerRoutes(
   // Setup Hospital Authentication & Routes
   setupHospitalAuth(app);
   registerHospitalRoutes(app);
+
+  // === Booked Slots (public — used by booking UI to show red slots) ===
+  app.get("/api/doctors/:id/booked-slots", async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      const appts = await storage.getAppointmentsByDoctor(doctorId);
+      // Only pending/confirmed appointments block a slot
+      // When appointment completes or cancels, the slot becomes available again
+      const bookedSlots = appts
+        .filter(a => ["pending", "confirmed"].includes(a.status))
+        .map(a => new Date(a.date).toISOString());
+
+      // Also return structured availability so booking UI can generate correct slots
+      const structuredAvail = await storage.getDoctorAvailability(doctorId);
+
+      return res.json({ bookedSlots, structuredAvailability: structuredAvail });
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch booked slots" });
+    }
+  });
+
+  // === Doctor's own availability (doctor manages their own schedule) ===
+  app.get("/api/doctor/availability", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "doctor") return res.sendStatus(401);
+    try {
+      const doctor = await storage.getDoctorByUserId(req.user!.id);
+      if (!doctor) return res.status(404).json({ message: "Doctor profile not found" });
+      const avail = await storage.getDoctorAvailability(doctor.id);
+      return res.json(avail);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch availability" });
+    }
+  });
+
+  app.post("/api/doctor/availability", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "doctor") return res.sendStatus(401);
+    try {
+      const doctor = await storage.getDoctorByUserId(req.user!.id);
+      if (!doctor) return res.status(404).json({ message: "Doctor profile not found" });
+      const doctorId = doctor.id;
+
+      const slots: any[] = Array.isArray(req.body) ? req.body : [req.body];
+      const saved = [];
+      for (const slot of slots) {
+        const { insertDoctorAvailabilitySchema } = await import("@shared/schema");
+        const parsed = insertDoctorAvailabilitySchema.parse({ ...slot, doctorId });
+        const result = await storage.upsertDoctorAvailability({
+          ...parsed,
+          leaveDates: Array.isArray(parsed.leaveDates) ? parsed.leaveDates as string[] : [],
+        });
+        saved.push(result);
+      }
+      broadcastUpdate({ type: "AVAILABILITY_UPDATED", payload: { doctorId, hospitalId: doctor.hospitalId } });
+      return res.json(saved);
+    } catch (err: any) {
+      console.error("[Doctor Availability]", err);
+      return res.status(500).json({ message: "Failed to save availability" });
+    }
+  });
 
   // === Doctors ===
   app.get(api.doctors.list.path, async (req, res) => {
@@ -99,23 +158,40 @@ export async function registerRoutes(
         patientId: patient.id
       });
 
-      const appointment = await storage.createAppointment(input);
+      // Auto-attach hospitalId from the doctor's hospital so it appears in hospital panel
+      const doctor = await storage.getDoctorWithUser(input.doctorId);
+      const hospitalId = doctor?.hospitalId ?? input.hospitalId ?? null;
+
+      const appointment = await storage.createAppointment({
+        ...input,
+        hospitalId,
+      });
+
+      // Broadcast to all clients for realtime updates (booked-slots, hospital panel, doctor dashboard)
+      broadcastUpdate({
+        type: "APPOINTMENT_CREATED",
+        payload: {
+          appointmentId: appointment.id,
+          doctorId: appointment.doctorId,
+          hospitalId: hospitalId,
+        },
+      });
 
       // Send emails in background (don't block the response)
       setImmediate(async () => {
         try {
-          const doctor = await storage.getDoctorWithUser(appointment.doctorId);
+          const doctorForEmail = await storage.getDoctorWithUser(appointment.doctorId);
           const patientWithUser = await storage.getPatientWithUser(appointment.patientId);
-          if (doctor && patientWithUser) {
+          if (doctorForEmail && patientWithUser) {
             await sendAppointmentBookedEmails({
               patientName: patientWithUser.user.name,
               patientEmail: patientWithUser.user.email,
               patientAge: patientWithUser.age,
               patientGender: patientWithUser.gender,
-              doctorName: doctor.user.name,
-              doctorEmail: doctor.user.email,
-              specialization: doctor.specialization,
-              hospital: doctor.hospital?.name || "",
+              doctorName: doctorForEmail.user.name,
+              doctorEmail: doctorForEmail.user.email,
+              specialization: doctorForEmail.specialization,
+              hospital: doctorForEmail.hospital?.name || "",
               date: appointment.date,
               reason: appointment.reason,
             });
@@ -164,6 +240,18 @@ export async function registerRoutes(
     }
 
     const updated = await storage.updateAppointmentStatus(appointmentId, status);
+
+    // Broadcast so booked-slots & hospital panel update everywhere in realtime
+    broadcastUpdate({
+      type: "APPOINTMENT_UPDATED",
+      payload: {
+        appointmentId,
+        doctorId: updated.doctorId,
+        hospitalId: updated.hospitalId,
+        status,
+      },
+    });
+
     res.json(updated);
 
     // Send status change email in background
@@ -389,9 +477,6 @@ export async function registerRoutes(
     }
   });
 
-  // Seed Data
-  await seedDatabase();
-
   // Setup WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
   wss.on("connection", (ws) => {
@@ -403,87 +488,3 @@ export async function registerRoutes(
   return httpServer;
 }
 
-async function seedDatabase() {
-  const existingHospitals = await storage.getHospitals();
-  if (existingHospitals.length > 0) return;
-
-  console.log("Seeding database...");
-  const hashedPassword = await hashPassword("password123");
-
-  // Create Hospitals
-  const h1 = await storage.createHospital({
-    name: "City General Hospital",
-    location: "Downtown",
-    contact: "555-0123",
-    specializations: ["Cardiology", "Neurology", "General Surgery"],
-    imageUrl: "https://images.unsplash.com/photo-1587351021759-3e566b9af9ef?auto=format&fit=crop&q=80&w=2000"
-  });
-
-  const h2 = await storage.createHospital({
-    name: "Sunrise Pediatrics",
-    location: "Westside",
-    contact: "555-0199",
-    specializations: ["Pediatrics", "Vaccination"],
-    imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=2000"
-  });
-
-  // Create Admin
-  await storage.createUser({
-    username: "admin",
-    password: hashedPassword,
-    role: "admin",
-    name: "Admin User",
-    email: "admin@health.com"
-  });
-
-  // Create Doctors
-  const d1User = await storage.createUser({
-    username: "doctor1",
-    password: hashedPassword,
-    role: "doctor",
-    name: "Dr. Sarah Smith",
-    email: "sarah@citygeneral.com"
-  });
-  await storage.createDoctor({
-    userId: d1User.id,
-    specialization: "Cardiology",
-    hospitalId: h1.id,
-    experience: 10,
-    consultationFee: 150,
-    availability: ["Mon 09:00-17:00", "Wed 09:00-17:00", "Fri 09:00-13:00"]
-  });
-
-  const d2User = await storage.createUser({
-    username: "doctor2",
-    password: hashedPassword,
-    role: "doctor",
-    name: "Dr. John Doe",
-    email: "john@sunrise.com"
-  });
-  await storage.createDoctor({
-    userId: d2User.id,
-    specialization: "Pediatrics",
-    hospitalId: h2.id,
-    experience: 5,
-    consultationFee: 100,
-    availability: ["Tue 09:00-17:00", "Thu 09:00-17:00"]
-  });
-
-  // Create Patients
-  const p1User = await storage.createUser({
-    username: "patient1",
-    password: hashedPassword,
-    role: "patient",
-    name: "Alice Johnson",
-    email: "alice@example.com"
-  });
-  await storage.createPatient({
-    userId: p1User.id,
-    age: 30,
-    gender: "Female",
-    contact: "555-1001",
-    medicalHistory: "None"
-  });
-
-  console.log("Database seeded successfully!");
-}

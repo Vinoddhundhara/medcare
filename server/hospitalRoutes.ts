@@ -6,7 +6,6 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { requireHospitalAuth, getCurrentHospital } from "./hospitalAuth";
-import { hashPassword } from "./auth";
 import { broadcastUpdate } from "./routes";
 import {
   insertDepartmentSchema, insertDoctorAvailabilitySchema,
@@ -57,7 +56,7 @@ export function registerHospitalRoutes(app: Express) {
       const cancelledAppts = allAppts.filter(a => a.status === "cancelled");
 
       const revenue = allAppts
-        .filter(a => a.paymentStatus === "paid")
+        .filter(a => a.status === "completed" || a.paymentStatus === "paid")
         .reduce((sum, a) => sum + (a.consultationFee || 0), 0);
 
       const [dcRow]   = await db.select({ count: sql<number>`count(*)::int` }).from(doctors).where(eq(doctors.hospitalId, hId));
@@ -74,6 +73,7 @@ export function registerHospitalRoutes(app: Express) {
         upcoming:    upcomingAppts.length,
         completed:   completedAppts.length,
         cancelled:   cancelledAppts.length,
+        totalAppointments: allAppts.length,
         revenue,
         doctorCount: dcRow?.count ?? 0,
         patientCount: patients.length,
@@ -153,20 +153,23 @@ export function registerHospitalRoutes(app: Express) {
     try {
       const h = (await getCurrentHospital(req))!;
       const {
-        name, email, password, username, phone, gender, dob,
+        name, email,
         specialization, experience, consultationFee, education,
         languages, bio, profileImage, departmentId, availability,
         status,
       } = req.body;
 
-      // Create user account for doctor
-      const existingUser = await storage.getUserByUsername(username || email);
-      if (existingUser) return res.status(400).json({ message: "Username or email already exists" });
+      if (!email) return res.status(400).json({ message: "Doctor email is required" });
 
-      const hashedPw = await hashPassword(password);
+      // Check if a user with this email already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) return res.status(400).json({ message: "A user with this email already exists" });
+
+      // Doctor logs in with their email — username = email
+      // Doctor's password = hospital's own password (already hashed in DB)
       const newUser = await storage.createUser({
-        username: username || email,
-        password: hashedPw,
+        username: email,          // email is the login username
+        password: h.password,     // same hashed password as the hospital
         role: "doctor",
         name: name,
         email: email,
@@ -189,6 +192,7 @@ export function registerHospitalRoutes(app: Express) {
       });
 
       const doctorWithUser = await storage.getDoctorWithUser(doctor.id);
+      broadcastUpdate({ type: "DOCTOR_ADDED", payload: { hospitalId: h.id } });
       return res.status(201).json(doctorWithUser);
     } catch (err: any) {
       console.error("[Hospital Add Doctor]", err);
@@ -569,9 +573,11 @@ export function registerHospitalRoutes(app: Express) {
 function buildDailyChart(appts: any[], days: number) {
   const result: { date: string; count: number }[] = [];
   const now = new Date();
-  for (let i = days - 1; i >= 0; i--) {
+  // Show past 14 days + next 14 days (centered around today)
+  const half = Math.floor(days / 2);
+  for (let i = -half; i < days - half; i++) {
     const d = new Date(now);
-    d.setDate(d.getDate() - i);
+    d.setDate(d.getDate() + i);
     d.setHours(0, 0, 0, 0);
     const next = new Date(d); next.setDate(d.getDate() + 1);
     const count = appts.filter(a => { const ad = new Date(a.date); return ad >= d && ad < next; }).length;
@@ -590,7 +596,8 @@ function buildMonthlyRevenueChart(appts: any[], months: number) {
     const revenue = appts
       .filter(a => {
         const ad = new Date(a.date);
-        return ad >= d && ad < next && a.paymentStatus === "paid";
+        // Count completed appointments OR explicitly paid ones
+        return ad >= d && ad < next && (a.status === "completed" || a.paymentStatus === "paid");
       })
       .reduce((s: number, a: any) => s + (a.consultationFee || 0), 0);
     result.push({ month: label, revenue });

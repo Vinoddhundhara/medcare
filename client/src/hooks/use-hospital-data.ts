@@ -19,7 +19,8 @@ export function useHospitalDashboard() {
   return useQuery({
     queryKey: ["/api/hospital/dashboard"],
     queryFn: () => apiFetch("/api/hospital/dashboard"),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,  // poll every 10s + WS invalidation
+    staleTime: 8_000,
   });
 }
 
@@ -171,7 +172,8 @@ export function useHospitalAppointments(filters?: { status?: string }) {
   return useQuery({
     queryKey: ["/api/hospital/appointments", filters],
     queryFn: () => apiFetch(`/api/hospital/appointments?${params}`),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
+    staleTime: 8_000,
   });
 }
 
@@ -248,7 +250,8 @@ export function useHospitalNotifications() {
   return useQuery({
     queryKey: ["/api/hospital/notifications"],
     queryFn: () => apiFetch("/api/hospital/notifications"),
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
+    staleTime: 8_000,
   });
 }
 

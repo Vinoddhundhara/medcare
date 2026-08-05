@@ -15,8 +15,17 @@ const getDirname = () => {
 
 export function serveStatic(app: Express) {
   // When bundled by esbuild to dist/index.cjs, __dirname is dist/
-  // Vite outputs client build to dist/public/, so this resolves correctly
-  const distPath = path.resolve(getDirname(), "public");
+  // When running via tsx directly, __dirname/import.meta.dirname is server/
+  // Vite outputs client build to dist/public/ (from project root)
+  const dirname = getDirname();
+  
+  // Try dist/public relative to current dir first (bundled: dist/ -> dist/public/)
+  // Then try ../dist/public (tsx: server/ -> project root -> dist/public/)
+  let distPath = path.resolve(dirname, "public");
+  if (!fs.existsSync(distPath)) {
+    distPath = path.resolve(dirname, "..", "dist", "public");
+  }
+
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`,

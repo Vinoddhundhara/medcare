@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   useHospitalDoctors, useAddHospitalDoctor, useUpdateHospitalDoctor,
   useToggleDoctorStatus, useDeleteHospitalDoctor, useHospitalDepartments,
-  useDoctorAvailability, useSaveDoctorAvailability,
 } from "@/hooks/use-hospital-data";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -20,125 +18,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   Stethoscope, Plus, Pencil, Trash2, Loader2, Search,
-  UserCheck, UserX, Clock, Filter,
+  UserCheck, UserX,
 } from "lucide-react";
 
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const SPECIALIZATIONS = [
   "Cardiology", "Neurology", "Orthopedics", "General Medicine", "Pulmonology",
   "Gastroenterology", "Dermatology", "Pediatrics", "Radiology", "Oncology",
   "Psychiatry", "Ophthalmology", "ENT", "Urology", "Gynecology",
 ];
 
-// ── Availability Editor Dialog ────────────────────────────────
-function AvailabilityDialog({ doctorId, doctorName, onClose }: any) {
-  const { data: avail, isLoading } = useDoctorAvailability(doctorId);
-  const saveMut = useSaveDoctorAvailability();
 
-  const initSlots = () =>
-    DAYS.map(day => ({
-      dayOfWeek: day,
-      isAvailable: false,
-      startTime: "09:00",
-      endTime: "17:00",
-      breakStart: "13:00",
-      breakEnd: "14:00",
-      slotDuration: 30,
-      emergencyAvailable: false,
-      leaveDates: [],
-    }));
-
-  const [slots, setSlots] = useState<any[]>(() => {
-    if (avail && avail.length) return avail;
-    return initSlots();
-  });
-
-  // sync when avail loads
-  if (avail && slots === initSlots()) setSlots(avail);
-
-  const update = (idx: number, key: string, val: any) => {
-    setSlots(prev => prev.map((s, i) => i === idx ? { ...s, [key]: val } : s));
-  };
-
-  const handleSave = async () => {
-    const active = slots.filter(s => s.isAvailable);
-    await saveMut.mutateAsync({ doctorId, slots: active });
-    onClose();
-  };
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Availability — {doctorName}</DialogTitle>
-        </DialogHeader>
-        {isLoading ? <Skeleton className="h-40" /> : (
-          <div className="space-y-3 py-2">
-            {slots.map((slot, i) => (
-              <div key={slot.dayOfWeek} className={`rounded-xl border p-4 transition-colors ${slot.isAvailable ? "border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800" : "border-border bg-muted/20"}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={slot.isAvailable}
-                      onChange={e => update(i, "isAvailable", e.target.checked)}
-                      className="w-4 h-4 accent-blue-600"
-                    />
-                    <span className="font-medium capitalize">{slot.dayOfWeek}</span>
-                  </label>
-                  {slot.isAvailable && (
-                    <label className="flex items-center gap-1.5 text-xs text-orange-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={slot.emergencyAvailable}
-                        onChange={e => update(i, "emergencyAvailable", e.target.checked)}
-                        className="w-3.5 h-3.5 accent-orange-500"
-                      />
-                      Emergency
-                    </label>
-                  )}
-                </div>
-                {slot.isAvailable && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <TimeField label="Start" value={slot.startTime} onChange={v => update(i, "startTime", v)} />
-                    <TimeField label="End" value={slot.endTime} onChange={v => update(i, "endTime", v)} />
-                    <TimeField label="Break Start" value={slot.breakStart} onChange={v => update(i, "breakStart", v)} />
-                    <TimeField label="Break End" value={slot.breakEnd} onChange={v => update(i, "breakEnd", v)} />
-                    <div>
-                      <label className="text-xs text-muted-foreground">Slot (min)</label>
-                      <Input
-                        type="number" min={10} max={120} step={5}
-                        value={slot.slotDuration}
-                        onChange={e => update(i, "slotDuration", parseInt(e.target.value))}
-                        className="h-8 text-sm mt-0.5"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saveMut.isPending}>
-            {saveMut.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            Save Availability
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <label className="text-xs text-muted-foreground">{label}</label>
-      <Input type="time" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} className="h-8 text-sm mt-0.5" />
-    </div>
-  );
-}
 
 // ── Doctor Form Dialog ─────────────────────────────────────────
 function DoctorFormDialog({ initial, departments, onClose }: any) {
@@ -149,10 +38,6 @@ function DoctorFormDialog({ initial, departments, onClose }: any) {
   const [form, setForm] = useState({
     name:            initial?.user?.name || "",
     email:           initial?.user?.email || "",
-    username:        initial?.user?.username || "",
-    password:        "",
-    phone:           "",
-    gender:          "male",
     specialization:  initial?.specialization || "General Medicine",
     departmentId:    initial?.departmentId ? String(initial.departmentId) : "",
     experience:      String(initial?.experience || 0),
@@ -188,12 +73,12 @@ function DoctorFormDialog({ initial, departments, onClose }: any) {
         </DialogHeader>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
           <F label="Full Name" value={form.name} onChange={v => set("name", v)} required />
-          <F label="Email" type="email" value={form.email} onChange={v => set("email", v)} required />
+          <F label="Doctor's Email" type="email" value={form.email} onChange={v => set("email", v)} required />
+
           {!isEdit && (
-            <>
-              <F label="Username" value={form.username} onChange={v => set("username", v)} required />
-              <F label="Password" type="password" value={form.password} onChange={v => set("password", v)} required />
-            </>
+            <div className="sm:col-span-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+              ℹ️ The doctor will log in using their email and the <strong>hospital's password</strong>. They can set their own schedule from their dashboard.
+            </div>
           )}
 
           <div className="space-y-1.5">
@@ -268,7 +153,6 @@ export default function HospitalDoctors() {
   const [filterDept, setFilterDept] = useState<number | undefined>();
   const [addOpen, setAddOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<any>(null);
-  const [availDoc, setAvailDoc] = useState<any>(null);
 
   const { data: doctors, isLoading } = useHospitalDoctors({
     search,
@@ -278,7 +162,6 @@ export default function HospitalDoctors() {
   const { data: departments } = useHospitalDepartments();
   const toggleStatus = useToggleDoctorStatus();
   const deleteDoc    = useDeleteHospitalDoctor();
-
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -364,9 +247,6 @@ export default function HospitalDoctors() {
                   <Button size="sm" variant="outline" onClick={() => setEditDoc(doc)} className="h-7 text-xs">
                     <Pencil className="w-3 h-3 mr-1" /> Edit
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAvailDoc(doc)} className="h-7 text-xs">
-                    <Clock className="w-3 h-3 mr-1" /> Schedule
-                  </Button>
                   <Button
                     size="sm" variant="outline"
                     onClick={() => toggleStatus.mutate({ id: doc.id, status: doc.status === "active" ? "inactive" : "active" })}
@@ -396,9 +276,6 @@ export default function HospitalDoctors() {
       )}
       {editDoc && (
         <DoctorFormDialog initial={editDoc} departments={departments} onClose={() => setEditDoc(null)} />
-      )}
-      {availDoc && (
-        <AvailabilityDialog doctorId={availDoc.id} doctorName={availDoc.user?.name} onClose={() => setAvailDoc(null)} />
       )}
     </div>
   );

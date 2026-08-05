@@ -29,6 +29,7 @@ export interface IStorage {
   // User
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, updates: Partial<InsertUser>): Promise<User>;
 
@@ -120,6 +121,10 @@ export class DatabaseStorage implements IStorage {
   }
   async getUserByUsername(username: string) {
     const [u] = await db.select().from(users).where(eq(users.username, username));
+    return u;
+  }
+  async getUserByEmail(email: string) {
+    const [u] = await db.select().from(users).where(eq(users.email, email));
     return u;
   }
   async createUser(insertUser: InsertUser) {
@@ -349,7 +354,9 @@ export class DatabaseStorage implements IStorage {
     return data as AppointmentWithDetails[];
   }
   async updateAppointmentStatus(id: number, status: UpdateAppointmentStatus["status"]) {
-    const [a] = await db.update(appointments).set({ status, updatedAt: new Date() }).where(eq(appointments.id, id)).returning();
+    // Auto-set paymentStatus to "paid" when appointment is marked as completed
+    const extraFields = status === "completed" ? { paymentStatus: "paid" as const } : {};
+    const [a] = await db.update(appointments).set({ status, ...extraFields, updatedAt: new Date() }).where(eq(appointments.id, id)).returning();
     return a;
   }
   async updateAppointment(id: number, updates: Partial<InsertAppointment>) {

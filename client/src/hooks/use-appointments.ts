@@ -7,12 +7,12 @@ export function useAppointments() {
   return useQuery({
     queryKey: [api.appointments.list.path],
     queryFn: async () => {
-      const res = await fetch(api.appointments.list.path, {
-        credentials: "include",
-      });
+      const res = await fetch(api.appointments.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch appointments");
       return api.appointments.list.responses[200].parse(await res.json());
     },
+    refetchInterval: 10_000,   // poll every 10s as safety net for missed WS events
+    staleTime: 8_000,
   });
 }
 
@@ -28,24 +28,25 @@ export function useCreateAppointment() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-
       if (!res.ok) {
         if (res.status === 401) throw new Error("Session expired. Please log in again.");
-        const contentType = res.headers.get("content-type");
-        if (contentType?.includes("application/json")) {
-          const error = await res.json();
-          throw new Error(error.message || "Failed to create appointment");
+        const ct = res.headers.get("content-type");
+        if (ct?.includes("application/json")) {
+          const err = await res.json();
+          throw new Error(err.message || "Failed to create appointment");
         }
         throw new Error(`Booking failed (${res.status})`);
       }
       return api.appointments.create.responses[201].parse(await res.json());
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [api.appointments.list.path],
-        refetchType: "all",
-      });
-      toast({ title: "Success", description: "Appointment booked successfully!" });
+    onSuccess: (appt: any) => {
+      queryClient.invalidateQueries({ queryKey: [api.appointments.list.path], refetchType: "all" });
+      if (appt?.doctorId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/doctors", appt.doctorId, "booked-slots"], refetchType: "all" } as any);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/hospital/dashboard"], refetchType: "all" } as any);
+      queryClient.invalidateQueries({ queryKey: ["/api/hospital/appointments"], refetchType: "all" } as any);
+      toast({ title: "Appointment booked!" });
     },
     onError: (error: Error) => {
       toast({ title: "Booking Failed", description: error.message, variant: "destructive" });
@@ -66,18 +67,22 @@ export function useUpdateAppointmentStatus() {
         body: JSON.stringify({ status }),
         credentials: "include",
       });
-
       if (!res.ok) throw new Error("Failed to update status");
       return api.appointments.updateStatus.responses[200].parse(await res.json());
     },
-    onSuccess: (_, variables) => {
-      // refetchType: 'all' ensures Dashboard and Analytics also update
-      // even if they are not the currently active page
+    onSuccess: (appt: any, { status }) => {
       queryClient.invalidateQueries({
         queryKey: [api.appointments.list.path],
         refetchType: "all",
       });
-      toast({ title: "Status Updated", description: `Appointment marked as ${variables.status}` });
+      // When completed or cancelled → free up the slot immediately
+      if (["completed", "cancelled", "rejected"].includes(status) && appt?.doctorId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/doctors", appt.doctorId, "booked-slots"], refetchType: "all" } as any);
+      }
+      // Always refresh hospital dashboard stats too
+      queryClient.invalidateQueries({ queryKey: ["/api/hospital/dashboard"], refetchType: "all" } as any);
+      queryClient.invalidateQueries({ queryKey: ["/api/hospital/appointments"], refetchType: "all" } as any);
+      toast({ title: "Status updated", description: `Appointment marked as ${status}` });
     },
     onError: (error: Error) => {
       toast({ title: "Update Failed", description: error.message, variant: "destructive" });

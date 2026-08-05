@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 
@@ -46,8 +46,42 @@ export function useBookedSlots(doctorId: number, enabled: boolean = true) {
       const res = await fetch(`/api/doctors/${doctorId}/booked-slots`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch booked slots");
       const data = await res.json();
-      return data.bookedSlots as string[];
+      return data as { bookedSlots: string[]; structuredAvailability: any[] };
     },
     enabled: !!doctorId && enabled,
+    refetchInterval: 8_000,   // keep slots fresh — red/available updates quickly
+    staleTime: 6_000,
+  });
+}
+
+// Doctor manages their own availability
+export function useDoctorOwnAvailability() {
+  return useQuery({
+    queryKey: ["/api/doctor/availability"],
+    queryFn: async () => {
+      const res = await fetch("/api/doctor/availability", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch availability");
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useSaveDoctorOwnAvailability() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (slots: any[]) => {
+      const res = await fetch("/api/doctor/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(slots),
+      });
+      if (!res.ok) throw new Error("Failed to save availability");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/doctor/availability"] });
+    },
   });
 }

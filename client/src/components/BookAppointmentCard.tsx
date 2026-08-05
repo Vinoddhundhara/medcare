@@ -64,7 +64,7 @@ function buildDaySlots(availability: string[] = []): DaySlots[] {
           const timeStr = format(slotTime, "h:mm a");
           slotsMap.set(timeStr, new Date(slotTime));
         }
-        slotTime = new Date(slotTime.getTime() + 30 * 60 * 1000);
+        slotTime = new Date(slotTime.getTime() + 60 * 60 * 1000);
       }
     }
 

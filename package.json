@@ -7,7 +7,9 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=development cross-env NODE_OPTIONS=--max-old-space-size=4096 tsx server/index.ts",
+    "dev": "cross-env NODE_ENV=development tsx server/index.ts",
+    "dev:local": "npm run build:client && cross-env NODE_ENV=production tsx server/index.ts",
+    "build:client": "vite build",
     "build": "tsx script/build.ts",
     "start": "cross-env NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
